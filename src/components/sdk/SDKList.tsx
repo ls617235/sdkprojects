@@ -67,7 +67,7 @@ export function SDKList({ onSelect }: SDKListProps) {
   const [selectedSDK, setSelectedSDK] = useState<SDKItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [embedType, setEmbedType] = useState<'html' | 'react' | 'vue'>('html');
+  const [embedType, setEmbedType] = useState<'html' | 'react' | 'vue2' | 'vue3'>('html');
   
   // 删除相关状态
   const [deleteSDK, setDeleteSDK] = useState<SDKItem | null>(null);
@@ -164,9 +164,16 @@ export function SDKList({ onSelect }: SDKListProps) {
   };
 
   // 生成嵌入代码（支持多种方式）
-  const generateEmbedCode = (token: string, name: string, type: 'html' | 'react' | 'vue' = 'html') => {
+  const generateEmbedCode = (token: string, name: string, type: 'html' | 'react' | 'vue2' | 'vue3' = 'html') => {
     const configKey = `SDK_CONFIG_${token.slice(0, 8).toUpperCase()}`;
     const sdkName = name.replace(/[^a-zA-Z0-9]/g, '');
+    
+    // 使用环境变量配置的地址，确保第三方系统能正确访问
+    // 优先使用环境变量中的域名配置（生产环境）
+    const baseUrl = process.env.NEXT_PUBLIC_SDK_PLATFORM_URL || 
+                    process.env.NEXT_PUBLIC_FRONTEND_URL || 
+                    (typeof window !== 'undefined' ? window.location.origin : '');
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || baseUrl;
     
     switch (type) {
       case 'react':
@@ -185,9 +192,9 @@ export function ${sdkName}SDK({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 创建 SDK 脚本
+      // 创建 SDK 脚本
     const script = document.createElement('script');
-    script.src = '/api/sdk/${token}/embed';
+    script.src = '${baseUrl}/api/sdk/${token}/embed';
     script.async = true;
     
     // 设置配置
@@ -229,10 +236,106 @@ export function ${sdkName}SDK({
 //   height="500px"
 // />`;
 
-      case 'vue':
-        return `<!-- ${name} SDK Vue 组件 -->
+      case 'vue2':
+        return `<!-- ${name} SDK Vue 2 组件 -->
+
 <template>
-  <div 
+  <div
+    ref="containerRef"
+    :data-sdk-token="token"
+    :style="{ width, minHeight: height }"
+  />
+</template>
+
+<script>
+export default {
+  name: '${sdkName}SDK',
+  props: {
+    config: {
+      type: Object,
+      default: () => ({})
+    },
+    width: {
+      type: String,
+      default: '100%'
+    },
+    height: {
+      type: String,
+      default: '400px'
+    }
+  },
+  data() {
+    return {
+      token: '${token}',
+      configKey: '${configKey}',
+      scriptEl: null
+    };
+  },
+  mounted() {
+    this.loadSDK();
+  },
+  beforeDestroy() {
+    // 清理脚本
+    if (this.scriptEl) {
+      this.scriptEl.remove();
+    }
+  },
+  watch: {
+    config: {
+      deep: true,
+      handler() {
+        // 更新配置
+        window[this.configKey] = {
+          ...this.config,
+          container: this.$refs.containerRef
+        };
+      }
+    }
+  },
+  methods: {
+    loadSDK() {
+      // 设置配置
+      window[this.configKey] = {
+        ...this.config,
+        container: this.$refs.containerRef
+      };
+
+      // 加载脚本
+      this.scriptEl = document.createElement('script');
+      this.scriptEl.src = '${baseUrl}/api/sdk/${token}/embed';
+      this.scriptEl.async = true;
+
+      this.scriptEl.onload = () => {
+        console.log('[${name} SDK] 加载成功');
+        this.$emit('load');
+      };
+
+      this.scriptEl.onerror = (err) => {
+        console.error('[${name} SDK] 加载失败:', err);
+        this.$emit('error', err);
+      };
+
+      document.head.appendChild(this.scriptEl);
+    }
+  }
+};
+</script>
+
+<!-- 使用示例
+
+<${sdkName}SDK
+  :config="{ custom: { userId: '123' } }"
+  height="500px"
+  @load="onSDKLoad"
+  @error="onSDKError"
+/>
+-->`;
+
+      case 'vue3':
+        return `<!-- ${name} SDK Vue 3 组件 -->
+
+<template>
+  <div
     ref="containerRef"
     :data-sdk-token="token"
     :style="{ width, minHeight: height }"
@@ -290,9 +393,9 @@ function loadSDK() {
     container: containerRef.value
   };
 
-  // 加载脚本
+      // 加载脚本
   scriptEl = document.createElement('script');
-  scriptEl.src = '/api/sdk/${token}/embed';
+  scriptEl.src = '${baseUrl}/api/sdk/${token}/embed';
   scriptEl.async = true;
 
   scriptEl.onload = () => {
@@ -310,7 +413,8 @@ function loadSDK() {
 </script>
 
 <!-- 使用示例
-<${sdkName}SDK 
+
+<${sdkName}SDK
   :config="{ custom: { userId: '123' } }"
   height="500px"
   @load="onSDKLoad"
@@ -326,7 +430,7 @@ function loadSDK() {
   data-sdk-config='{"custom": {"userId": "12345"}}'
   style="width: 100%; min-height: 400px;"
 ></div>
-<script src="/api/sdk/${token}/embed" async></script>
+<script src="${baseUrl}/api/sdk/${token}/embed" async></script>
 
 <!-- 方式二：使用全局配置 -->
 <script>
@@ -340,7 +444,7 @@ window.${configKey} = {
   }
 };
 </script>
-<script src="/api/sdk/${token}/embed" async></script>
+<script src="${baseUrl}/api/sdk/${token}/embed" async></script>
 <div data-sdk-token="${token}" style="width: 100%; min-height: 400px;"></div>
 
 <!-- 方式三：动态加载 -->
@@ -354,7 +458,7 @@ window.${configKey} = {
   
   // 动态加载脚本
   var script = document.createElement('script');
-  script.src = '/api/sdk/' + token + '/embed';
+  script.src = '${baseUrl}/api/sdk/' + token + '/embed';
   script.async = true;
   document.head.appendChild(script);
   
@@ -566,7 +670,7 @@ window.${configKey} = {
               <div>
                 <h4 className="font-medium text-gray-900 mb-4">嵌入代码</h4>
                 <Tabs value={embedType} onValueChange={(v) => setEmbedType(v as typeof embedType)}>
-                  <TabsList className="grid w-full grid-cols-3 mb-4 rounded-lg border border-gray-200">
+                  <TabsList className="grid w-full grid-cols-4 mb-4 rounded-lg border border-gray-200">
                     <TabsTrigger value="html" className="flex items-center gap-2 py-3 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
                       <Code className="w-4 h-4" />
                       HTML
@@ -575,13 +679,17 @@ window.${configKey} = {
                       <Braces className="w-4 h-4" />
                       React
                     </TabsTrigger>
-                    <TabsTrigger value="vue" className="flex items-center gap-2 py-3 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
+                    <TabsTrigger value="vue2" className="flex items-center gap-2 py-3 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
                       <FileCode className="w-4 h-4" />
-                      Vue
+                      Vue 2
+                    </TabsTrigger>
+                    <TabsTrigger value="vue3" className="flex items-center gap-2 py-3 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
+                      <FileCode className="w-4 h-4" />
+                      Vue 3
                     </TabsTrigger>
                   </TabsList>
 
-                  {['html', 'react', 'vue'].map((type) => (
+                  {['html', 'react', 'vue2', 'vue3'].map((type) => (
                     <TabsContent key={type} value={type} className="relative mt-0">
                       <div className="bg-gray-900 rounded-xl overflow-hidden shadow-lg">
                         <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">

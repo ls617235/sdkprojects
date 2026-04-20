@@ -1,0 +1,136 @@
+# ============================================
+# SDK Share Platform - 内网部署 Docker Compose
+# 无网络环境 - 使用预构建镜像
+# ============================================
+
+version: '3.8'
+
+services:
+  # ==========================================
+  # 前端服务 (Next.js)
+  # ==========================================
+  frontend:
+    image: sdk-platform-frontend:${IMAGE_TAG:-latest}
+    container_name: sdk-share-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:5000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:8000}
+      - NEXT_PUBLIC_INTERNAL_NETWORK=true
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - sdk-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================
+  # 后端服务 (FastAPI)
+  # ==========================================
+  backend:
+    image: sdk-platform-backend:${IMAGE_TAG:-latest}
+    container_name: sdk-share-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+      - WORKERS=${WORKERS:-4}
+      # 内网数据库配置
+      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_POOL_SIZE=${DATABASE_POOL_SIZE:-20}
+      - DATABASE_MAX_OVERFLOW=${DATABASE_MAX_OVERFLOW:-10}
+      # 内网 Redis 配置
+      - REDIS_URL=${REDIS_URL}
+      - CACHE_ENABLED=${CACHE_ENABLED:-true}
+      - CACHE_TTL=${CACHE_TTL:-300}
+      # JWT 密钥
+      - SECRET_KEY=${SECRET_KEY}
+      # 限流配置
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-100}
+      # 前端域名
+      - FRONTEND_DOMAIN=${FRONTEND_DOMAIN:-}
+      # 内网模式标志
+      - INTERNAL_NETWORK=true
+    networks:
+      - sdk-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - backend-logs:/app/logs
+
+  # ==========================================
+  # Nginx 反向代理（可选）
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: sdk-share-nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx.internal.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - sdk-network
+    profiles:
+      - with-nginx
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  backend-logs:
+    driver: local
+  nginx-logs:
+    driver: local
+
+networks:
+  sdk-network:
+    driver: bridge

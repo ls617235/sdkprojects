@@ -1,0 +1,142 @@
+# ============================================
+# SDK Share Platform - 内网离线部署配置
+# 所有镜像使用本地构建，不依赖外部网络
+# ============================================
+
+version: '3.8'
+
+services:
+  # ==========================================
+  # PostgreSQL 数据库（内网部署必需）
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: sdk-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sdk_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sdk_password_123}
+      POSTGRES_DB: ${POSTGRES_DB:-sdk_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - sdk-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sdk_user} -d ${POSTGRES_DB:-sdk_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # Redis 缓存（内网部署必需）
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: sdk-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sdk-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # 前端服务 (Next.js)
+  # ==========================================
+  frontend:
+    image: sdk-platform-frontend:${VERSION:-latest}
+    container_name: sdk-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:5000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - sdk-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # 后端服务 (FastAPI)
+  # ==========================================
+  backend:
+    image: sdk-platform-backend:${VERSION:-latest}
+    container_name: sdk-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+      - WORKERS=4
+      # 数据库配置（使用内网 PostgreSQL）
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-sdk_user}:${POSTGRES_PASSWORD:-sdk_password_123}@postgres:5432/${POSTGRES_DB:-sdk_platform}
+      # Redis 配置（使用内网 Redis）
+      - REDIS_URL=redis://redis:6379/0
+      - CACHE_ENABLED=true
+      - CACHE_TTL=300
+      # 限流配置
+      - RATE_LIMIT_ENABLED=true
+      - RATE_LIMIT_REQUESTS=1000
+      # JWT 密钥（必须修改）
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sdk-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================
+  # Nginx 反向代理（可选）
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: sdk-nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./nginx.offline.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - sdk-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  sdk-network:
+    driver: bridge

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { getEmbedScriptUrl, getSDKPlatformUrl } from '@/lib/sdk-url';
+import { getEmbedScriptUrl, getSDKPlatformUrl, getEmbedCodeBaseUrl } from '@/lib/sdk-url';
 
 interface SDKResultProps {
   data: {
@@ -24,7 +24,7 @@ interface SDKResultProps {
 
 export function SDKResult({ data, onClose }: SDKResultProps) {
   const [copied, setCopied] = useState<string | null>(null);
-  const [embedType, setEmbedType] = useState<'html' | 'react' | 'vue'>('html');
+  const [embedType, setEmbedType] = useState<'html' | 'react' | 'vue2' | 'vue3'>('html');
 
   const embedCode = data.embed_code || '';
   const displayToken = data.share_token 
@@ -63,13 +63,15 @@ export function SDKResult({ data, onClose }: SDKResultProps) {
   };
 
   // 生成嵌入代码（支持多种方式）
-  const generateEmbedCode = (type: 'html' | 'react' | 'vue' = 'html') => {
+  const generateEmbedCode = (type: 'html' | 'react' | 'vue2' | 'vue3' = 'html') => {
     const token = data.share_token || '';
     const name = data.name || 'SDK';
     const configKey = token ? `SDK_CONFIG_${token.slice(0, 8).toUpperCase()}` : 'SDK_CONFIG_DEFAULT';
     const sdkName = name.replace(/[^a-zA-Z0-9]/g, '');
-    const embedScriptUrl = getEmbedScriptUrl(token);
-    const apiBaseUrl = getSDKPlatformUrl();
+    // 使用 getEmbedCodeBaseUrl 确保生成完整的 URL（优先使用环境变量配置的地址）
+    const baseUrl = getEmbedCodeBaseUrl();
+    const embedScriptUrl = `${baseUrl}/api/sdk/${token}/embed`;
+    const apiBaseUrl = baseUrl;
 
     switch (type) {
       case 'react':
@@ -110,7 +112,60 @@ export function ${sdkName}SDK({ config = {}, width = '100%', height = '400px', o
   return <div ref={containerRef} data-sdk-token="${token}" style={{ width, minHeight: height }} />;
 }`;
 
-      case 'vue':
+      case 'vue2':
+        return `<template>
+  <div ref="containerRef" :data-sdk-token="token" :style="{ width, minHeight: height }" />
+</template>
+
+<script>
+export default {
+  name: '${sdkName}SDK',
+  props: {
+    config: { type: Object, default: () => ({}) },
+    width: { type: String, default: '100%' },
+    height: { type: String, default: '400px' }
+  },
+  data() {
+    return {
+      token: '${token}',
+      configKey: '${configKey}',
+      scriptEl: null
+    };
+  },
+  mounted() {
+    // SDK 配置
+    window[this.configKey] = {
+      ...this.config,
+      container: this.$refs.containerRef,
+      // API 配置（可选）
+      apiBaseUrl: this.config.apiBaseUrl || '${apiBaseUrl}',
+      apiKey: this.config.apiKey || '',
+      // 自定义配置
+      custom: {
+        userId: this.config.userId || '',
+        userName: this.config.userName || '',
+        environment: this.config.environment || 'production',
+        ...this.config.custom
+      }
+    };
+
+    this.scriptEl = document.createElement('script');
+    this.scriptEl.src = '${embedScriptUrl}';
+    this.scriptEl.async = true;
+    this.scriptEl.onload = () => this.$emit('load');
+    this.scriptEl.onerror = (err) => this.$emit('error', err);
+    document.head.appendChild(this.scriptEl);
+  },
+  beforeDestroy() {
+    if (this.scriptEl) {
+      this.scriptEl.remove();
+    }
+  }
+};
+
+<\/script>`;
+
+      case 'vue3':
         return `<template>
   <div ref="containerRef" :data-sdk-token="token" :style="{ width, minHeight: height }" />
 </template>
@@ -156,7 +211,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => scriptEl?.remove());
-</script>`;
+
+<\/script>`;
 
       default: // HTML
         // 如果有原始嵌入代码，直接返回
@@ -320,7 +376,7 @@ window.${configKey} = {
       {/* 嵌入代码展示区 */}
       <div className="p-5">
         <Tabs value={embedType} onValueChange={(v) => setEmbedType(v as typeof embedType)}>
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="html" className="flex items-center gap-1">
               <Code className="w-3 h-3" />
               HTML
@@ -329,13 +385,17 @@ window.${configKey} = {
               <Braces className="w-3 h-3" />
               React
             </TabsTrigger>
-            <TabsTrigger value="vue" className="flex items-center gap-1">
+            <TabsTrigger value="vue2" className="flex items-center gap-1">
               <FileCode className="w-3 h-3" />
-              Vue
+              Vue 2
+            </TabsTrigger>
+            <TabsTrigger value="vue3" className="flex items-center gap-1">
+              <FileCode className="w-3 h-3" />
+              Vue 3
             </TabsTrigger>
           </TabsList>
 
-          {['html', 'react', 'vue'].map((type) => (
+          {['html', 'react', 'vue2', 'vue3'].map((type) => (
             <TabsContent key={type} value={type}>
               <div className="bg-gray-900 rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
@@ -344,7 +404,7 @@ window.${configKey} = {
                     <div className="w-3 h-3 rounded-full bg-yellow-500" />
                     <div className="w-3 h-3 rounded-full bg-green-500" />
                     <span className="text-xs text-gray-400 ml-2">
-                      {type === 'html' ? 'embed.html' : type === 'react' ? 'SDKComponent.tsx' : 'SDKComponent.vue'}
+                      {type === 'html' ? 'embed.html' : type === 'react' ? 'SDKComponent.tsx' : type === 'vue2' ? 'SDKComponentVue2.vue' : 'SDKComponentVue3.vue'}
                     </span>
                   </div>
                   <Button

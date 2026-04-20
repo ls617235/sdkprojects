@@ -7,8 +7,7 @@ import {
   Eye, Code, Copy, Check, ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getEmbedScriptUrl, getSDKPlatformUrl } from '@/lib/sdk-url';
-import { getApiBaseUrl } from '@/lib/api';
+import { getEmbedScriptUrl, getBackendApiUrlForEmbed } from '@/lib/sdk-url';
 
 interface SDKPreviewProps {
   data: {
@@ -87,8 +86,8 @@ function CodeDisplay({
   copied,
   handleCopy
 }: {
-  envType: 'html' | 'react' | 'vue';
-  generateEmbedCode: (type: 'html' | 'react' | 'vue') => string;
+  envType: 'html' | 'react' | 'vue2' | 'vue3';
+  generateEmbedCode: (type: 'html' | 'react' | 'vue2' | 'vue3') => string;
   formatCodeForDisplay: (code: string) => string;
   copied: string | null;
   handleCopy: () => void;
@@ -97,7 +96,8 @@ function CodeDisplay({
     switch (envType) {
       case 'html': return 'embed.html';
       case 'react': return 'SDKComponent.tsx';
-      case 'vue': return 'SDKComponent.vue';
+      case 'vue2': return 'SDKComponentVue2.vue';
+      case 'vue3': return 'SDKComponentVue3.vue';
     }
   };
 
@@ -143,7 +143,7 @@ function CodeDisplay({
 }
 
 export function SDKPreview({ data, open, onClose }: SDKPreviewProps) {
-  const [envType, setEnvType] = useState<'html' | 'react' | 'vue'>('html');
+  const [envType, setEnvType] = useState<'html' | 'react' | 'vue2' | 'vue3'>('html');
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -152,9 +152,9 @@ export function SDKPreview({ data, open, onClose }: SDKPreviewProps) {
   const configKey = token ? `SDK_CONFIG_${token.slice(0, 8).toUpperCase()}` : 'SDK_CONFIG_DEFAULT';
 
   // 生成嵌入代码
-  const generateEmbedCode = (type: 'html' | 'react' | 'vue') => {
+  const generateEmbedCode = (type: 'html' | 'react' | 'vue2' | 'vue3') => {
     const embedScriptUrl = getEmbedScriptUrl(token);
-    const apiBaseUrl = getSDKPlatformUrl(); // 使用 SDK 平台的 URL 作为 API 基础 URL
+    const apiBaseUrl = getBackendApiUrlForEmbed(); // 使用后端 API URL，确保第三方系统能正确访问灵童平台
 
     switch (type) {
       case 'react':
@@ -193,9 +193,34 @@ export function ${name.replace(/[^a-zA-Z0-9]/g, '')}SDK({ config = {}, width = '
   }, [config]);
 
   return <div ref={containerRef} data-sdk-token="${token}" style={{ width, minHeight: height }} />;
-}`;
+}
 
-      case 'vue':
+// ==================== 使用示例 ====================
+// 在您的页面或组件中引入并使用：
+//
+// import { ${name.replace(/[^a-zA-Z0-9]/g, '')}SDK } from './SDKComponent';
+//
+// function App() {
+//   return (
+//     <div>
+//       <h1>我的页面</h1>
+//       <${name.replace(/[^a-zA-Z0-9]/g, '')}SDK 
+//         config={{
+//           apiKey: 'your-api-key',
+//           userId: 'user123',
+//           userName: '张三',
+//           custom: { token: 'bearer_xxx' }
+//         }}
+//         width="100%"
+//         height="600px"
+//         onLoad={() => console.log('SDK 加载完成')}
+//         onError={(err) => console.error('SDK 加载失败', err)}
+//       />
+//     </div>
+//   );
+// }`;
+
+      case 'vue3':
         return `<template>
   <div ref="containerRef" :data-sdk-token="token" :style="{ width, minHeight: height }" />
 </template>
@@ -241,7 +266,152 @@ onMounted(() => {
 });
 
 onUnmounted(() => scriptEl?.remove());
-</script>`;
+
+<\/script>
+
+/* ==================== 使用示例 ====================
+在 Vue 3 项目中引入并使用：
+
+
+
+<template>
+  <${name.replace(/[^a-zA-Z0-9]/g, '')}SDK 
+    :config="sdkConfig" 
+    width="100%" 
+    height="500px"
+    @load="onSDKLoad"
+    @error="onSDKError"
+  />
+</template>
+
+<script setup>
+import { ref } from 'vue';
+import ${name.replace(/[^a-zA-Z0-9]/g, '')}SDK from './SDKComponent.vue';
+
+const sdkConfig = ref({
+  apiKey: 'your-api-key',
+  userId: 'user-123',
+  userName: '张三',
+  environment: 'production',
+  custom: {
+    token: 'bearer-token',
+    department: '技术部'
+  }
+});
+
+const onSDKLoad = () => {
+  console.log('SDK 加载完成');
+};
+
+const onSDKError = (err) => {
+  console.error('SDK 加载失败:', err);
+};
+
+
+<\/script>
+*/`;
+
+      case 'vue2':
+        return `<template>
+  <div>
+    <div ref="sdkContainer" :data-sdk-token="'${token}'" :style="{ width: width || '100%', minHeight: height || '400px' }"></div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: '${name.replace(/[^a-zA-Z0-9]/g, '')}SDK',
+  props: {
+    config: { type: Object, default: () => ({}) },
+    width: { type: String, default: '100%' },
+    height: { type: String, default: '400px' }
+  },
+  data() {
+    return {
+      scriptEl: null
+    };
+  },
+  mounted() {
+    // SDK 配置
+    window['${configKey}'] = {
+      ...this.config,
+      container: this.$refs.sdkContainer,
+      // API 配置（可选）
+      apiBaseUrl: this.config.apiBaseUrl || '${apiBaseUrl}',
+      apiKey: this.config.apiKey || '',
+      // 自定义配置
+      custom: {
+        userId: this.config.userId || '',
+        userName: this.config.userName || '',
+        environment: this.config.environment || 'production',
+        ...this.config.custom
+      }
+    };
+
+    // 加载 SDK 脚本
+    this.scriptEl = document.createElement('script');
+    this.scriptEl.src = '${embedScriptUrl}';
+    this.scriptEl.async = true;
+    this.scriptEl.onload = () => this.$emit('load');
+    this.scriptEl.onerror = (err) => this.$emit('error', err);
+    document.head.appendChild(this.scriptEl);
+  },
+  beforeDestroy() {
+    if (this.scriptEl) {
+      this.scriptEl.remove();
+    }
+  }
+};
+
+<\/script>
+
+/* ==================== 使用示例 ====================
+在 Vue 2 项目中引入并使用：
+
+
+
+<template>
+  <${name.replace(/[^a-zA-Z0-9]/g, '')}SDK 
+    :config="sdkConfig" 
+    width="100%" 
+    height="500px"
+    @load="onSDKLoad"
+    @error="onSDKError"
+  />
+</template>
+
+<script>
+import ${name.replace(/[^a-zA-Z0-9]/g, '')}SDK from './SDKComponent.vue';
+
+export default {
+  components: { ${name.replace(/[^a-zA-Z0-9]/g, '')}SDK },
+  data() {
+    return {
+      sdkConfig: {
+        apiKey: 'your-api-key',
+        userId: 'user-123',
+        userName: '张三',
+        environment: 'production',
+        custom: {
+          token: 'bearer-token',
+          department: '技术部'
+        }
+      }
+    };
+  },
+  methods: {
+    onSDKLoad() {
+      console.log('SDK 加载完成');
+    },
+    onSDKError(err) {
+      console.error('SDK 加载失败:', err);
+    }
+  }
+};
+
+
+<\/script>
+*/`;
 
       default:
         return `<!-- ${name} SDK 嵌入代码 -->
@@ -268,7 +438,42 @@ window.${configKey} = {
 <div data-sdk-token="${token}" style="width:100%;min-height:400px;"></div>
 
 <!-- 加载 SDK 脚本 -->
-<script src="${embedScriptUrl}" async><\/script>`;
+<script src="${embedScriptUrl}" async><\/script>
+
+<!--
+==================== 使用示例 ====================
+1. 基础用法：直接将上面的代码复制到你的 HTML 页面中
+
+2. 自定义配置：修改 window.${configKey} 中的值
+   - apiBaseUrl: 灵童平台后端 API 地址
+   - apiKey: 如果需要认证的 SDK，填写 API Key
+   - custom.userId: 当前登录用户 ID
+   - custom.userName: 当前登录用户名
+
+3. 监听事件：
+   <script>
+     // SDK 加载完成
+     document.querySelector('[data-sdk-token="${token}"]').addEventListener('sdk:load', function() {
+       console.log('SDK 加载完成');
+     });
+     
+     // SDK 加载失败
+     document.querySelector('[data-sdk-token="${token}"]').addEventListener('sdk:error', function(e) {
+       console.error('SDK 加载失败:', e.detail);
+     });
+   <\/script>
+
+4. 动态更新配置：
+   <script>
+     // 更新用户信息后刷新 SDK
+     window.${configKey}.custom.userId = 'new-user-id';
+     window.${configKey}.custom.userName = '新用户名';
+     // 调用刷新方法（如果 SDK 支持）
+     if (window.${configKey}.refresh) {
+       window.${configKey}.refresh();
+     }
+   <\/script>
+-->`;
     }
   };
 
@@ -341,7 +546,8 @@ window.${configKey} = {
               <TabsList className="h-8">
                 <TabsTrigger value="html" className="text-xs px-3">HTML</TabsTrigger>
                 <TabsTrigger value="react" className="text-xs px-3">React</TabsTrigger>
-                <TabsTrigger value="vue" className="text-xs px-3">Vue</TabsTrigger>
+                <TabsTrigger value="vue2" className="text-xs px-3">Vue 2</TabsTrigger>
+                <TabsTrigger value="vue3" className="text-xs px-3">Vue 3</TabsTrigger>
               </TabsList>
             </Tabs>
           )}
@@ -365,8 +571,11 @@ window.${configKey} = {
               <TabsContent value="react" className="mt-0 h-full">
                 <CodeDisplay envType="react" generateEmbedCode={generateEmbedCode} formatCodeForDisplay={formatCodeForDisplay} copied={copied} handleCopy={handleCopy} />
               </TabsContent>
-              <TabsContent value="vue" className="mt-0 h-full">
-                <CodeDisplay envType="vue" generateEmbedCode={generateEmbedCode} formatCodeForDisplay={formatCodeForDisplay} copied={copied} handleCopy={handleCopy} />
+              <TabsContent value="vue2" className="mt-0 h-full">
+                <CodeDisplay envType="vue2" generateEmbedCode={generateEmbedCode} formatCodeForDisplay={formatCodeForDisplay} copied={copied} handleCopy={handleCopy} />
+              </TabsContent>
+              <TabsContent value="vue3" className="mt-0 h-full">
+                <CodeDisplay envType="vue3" generateEmbedCode={generateEmbedCode} formatCodeForDisplay={formatCodeForDisplay} copied={copied} handleCopy={handleCopy} />
               </TabsContent>
             </Tabs>
           )}
