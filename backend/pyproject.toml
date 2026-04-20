@@ -1,0 +1,18 @@
+[project]
+name = "sdk-share-backend"
+version = "1.0.0"
+description = "SDK Share Platform - Python Backend"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]

@@ -1,0 +1,36 @@
+# ============================================
+# SDK Share Platform - Python Backend Dependencies
+# ============================================
+
+# FastAPI 核心
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# 数据库
+asyncpg==0.30.0           # PostgreSQL 异步驱动
+
+# 高并发
+gunicorn==23.0.0          # WSGI 服务器
+uvicorn-worker==0.3.0     # Gunicorn Uvicorn Worker
+aiocache==0.12.3          # 异步缓存
+redis==5.2.1              # Redis 客户端
+
+# 限流与安全
+slowapi==0.1.9            # API 限流
+python-multipart==0.0.20  # 文件上传
+
+# 工具
+python-dotenv==1.0.1      # 环境变量
+httpx==0.28.1             # HTTP 客户端
+orjson==3.10.12           # 高性能 JSON
+
+# 日志与监控
+loguru==0.7.3             # 日志
+prometheus-fastapi-instrumentator==7.0.2  # Prometheus 监控
+
+# 测试
+pytest==8.3.4
+pytest-asyncio==0.25.0
+httpx==0.28.1

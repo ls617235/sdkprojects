@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>灵童助手SDK - 预览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #fff;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+        .preview-header {
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 50px;
+        }
+        .preview-header h1 {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+        .preview-content {
+            height: calc(100% - 50px);
+            width: 100%;
+            position: relative;
+            background: #fff;
+        }
+        #sdk-container {
+            width: 100%;
+            height: 100%;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-header">
+        <h1>🔍 灵童助手SDK - 效果预览</h1>
+        <span style="color: #666; font-size: 12px;">Token: 1d6c534bb8140af0...</span>
+    </div>
+    <div class="preview-content">
+        <!-- SDK 配置 -->
+        <script>
+            window.SDK_CONFIG_1D6C534B = {
+                apiBaseUrl: 'http://localhost:8000',
+                apiKey: '',
+                custom: {
+                    userId: 'preview-user',
+                    userName: '预览用户',
+                    environment: 'preview'
+                },
+                useShadowDOM: true
+            };
+        </script>
+        
+        <!-- SDK 容器 -->
+        <div id="sdk-container" data-sdk-token="1d6c534bb8140af0a758ef300d6037f1">
+            <div class="loading">正在加载 SDK...</div>
+        </div>
+        
+        <!-- SDK 脚本 - 使用相对路径，由前端代理转发 -->
+        <script src="http://localhost:3000/api/sdk/1d6c534bb8140af0a758ef300d6037f1/embed"></script>
+    </div>
+</body>
+</html>

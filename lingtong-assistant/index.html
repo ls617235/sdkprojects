@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>集成电路产业链客户营销助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            background-color: #ffffff;
+        }
+
+        /* 右下角悬浮图标 */
+        .floating-icon {
+            position: fixed;
+            width: 120px;
+            height: 120px;
+            cursor: pointer;
+            z-index: 100;
+            right: 20px;
+            bottom: 20px;
+        }
+
+        .floating-icon img {
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+        }
+
+        /* 弹窗遮罩 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* 弹窗容器 */
+        .modal-container {
+            width: 95%;
+            max-width: 1200px;
+            max-height: 90vh;
+            background: #f5f7fa;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-overlay.show .modal-container {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 12px 20px;
+            background: white;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .modal-close {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            font-size: 20px;
+            color: #999;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        /* 顶部区域 */
+        .top-section {
+            background: linear-gradient(135deg, #e8f4ff 0%, #d4e9ff 100%);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+        }
+
+        .top-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .top-input-hint {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .top-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .top-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: #1890ff;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        .top-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .top-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .top-btn {
+            padding: 6px 14px;
+            background: white;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+        }
+
+        /* 中间内容区域 */
+        .content-section {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            display: flex;
+            gap: 40px;
+        }
+
+        .content-left {
+            flex: 1;
+            display: flex;
+            gap: 24px;
+        }
+
+        .robot-image {
+            width: 180px;
+            height: 220px;
+            flex-shrink: 0;
+        }
+
+        .robot-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .left-content {
+            flex: 1;
+        }
+
+        .content-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .content-desc {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.8;
+            margin-bottom: 16px;
+        }
+
+        .feature-tags {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .feature-tag {
+            display: inline-flex;
+            align-items: center;
+            font-size: 12px;
+            color: #1890ff;
+            background: #e6f7ff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            width: fit-content;
+        }
+
+        .content-right {
+            width: 380px;
+        }
+
+        .right-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .product-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .card-number {
+            width: 20px;
+            height: 20px;
+            background: #1890ff;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .card-desc {
+            font-size: 11px;
+            color: #999;
+            line-height: 1.4;
+        }
+
+        /* 底部输入区域 */
+        .bottom-section {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+
+        .bottom-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            gap: 16px;
+        }
+
+        .bottom-left {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            flex: 1;
+            flex-wrap: wrap;
+        }
+
+        .hint-text {
+            color: #666;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .example-label {
+            color: #999;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .example-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .example-tag {
+            padding: 6px 12px;
+            background: #f0f7ff;
+            border: 1px solid #91d5ff;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1890ff;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .bottom-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .hint-text {
+            color: #666;
+        }
+
+        .example-label {
+            color: #999;
+        }
+
+        .example-tags {
+            display: flex;
+            gap: 8px;
+        }
+
+        .example-tag {
+            padding: 4px 10px;
+            background: #f0f7ff;
+            border: 1px solid #91d5ff;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #1890ff;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .bottom-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            background: none;
+            border: none;
+            font-size: 12px;
+            color: #666;
+            cursor: pointer;
+        }
+
+        .action-btn .icon {
+            font-size: 14px;
+        }
+
+        .input-box {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .input-textarea {
+            flex: 1;
+            min-height: 50px;
+            padding: 12px 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .input-textarea::placeholder {
+            color: #bfbfbf;
+        }
+
+        .send-btn {
+            padding: 10px 20px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #999;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .send-btn.active {
+            background: #1890ff;
+            color: white;
+        }
+
+        /* 消息列表样式 */
+        .message-list {
+            display: none;
+            padding: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .message-item {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .message-item.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-item .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .message-item.user .message-avatar {
+            background: #1890ff;
+            color: white;
+        }
+
+        .message-item.ai .message-avatar {
+            background: #52c41a;
+            color: white;
+        }
+
+        .message-item .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .message-item.user .message-content {
+            background: #e6f7ff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-item.ai .message-content {
+            background: white;
+            border: 1px solid #e8e8e8;
+            border-bottom-left-radius: 4px;
+        }
+
+        .ai-title {
+            font-weight: 600;
+            color: #52c41a;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .ai-body {
+            color: #333;
+        }
+
+        /* 加载状态 */
+        .loading-state {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .loading-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e8e8e8;
+            border-top-color: #1890ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 13px;
+            color: #999;
+        }
+
+        /* 历史对话抽屉 */
+        .history-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100vh;
+            background: white;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+            z-index: 9999;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .history-drawer.show {
+            transform: translateX(0);
+        }
+
+        .history-header {
+            padding: 16px;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .history-close {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: none;
+            font-size: 20px;
+            color: #999;
+            cursor: pointer;
+        }
+
+        .history-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .history-item {
+            padding: 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+
+        .history-item:hover {
+            border-color: #1890ff;
+            background: #f0f7ff;
+        }
+
+        .history-item-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .history-item-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 40px 0;
+            color: #999;
+            font-size: 14px;
+        }
+
+        /* 遮罩层 - 已禁用，避免遮挡历史对话 */
+        .drawer-overlay {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .modal-container {
+                width: 98%;
+                max-height: 95vh;
+            }
+
+            .floating-icon {
+                width: 80px;
+                height: 80px;
+            }
+
+            .content-section {
+                flex-direction: column;
+            }
+
+            .content-right {
+                width: 100%;
+            }
+
+            .product-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .top-main {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .top-buttons {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 右下角悬浮图标 -->
+    <div class="floating-icon" id="floatingIcon">
+        <img src="public/static/jcdl7.png" alt="灵童助手">
+    </div>
+
+    <!-- 弹窗 -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title">集成电路产业链客户营销助手</div>
+                <button class="modal-close" id="modalCloseBtn">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- 消息列表 -->
+                <div class="message-list" id="messageList"></div>
+                <div class="loading-state" id="loadingState">
+                    <div class="loading-spinner"></div>
+                    <span class="loading-text">AI正在分析中...</span>
+                </div>
+
+                <!-- 顶部区域 -->
+                <div class="top-section">
+                    <div class="top-header">
+                        <span class="top-input-hint">输入企业名称，生成产品推荐方向与营销切入点</span>
+                    </div>
+                    <div class="top-main">
+                        <div class="top-left">
+                            <div class="logo-icon">🔍</div>
+                            <div class="top-title">集成电路产业链客户营销助手</div>
+                        </div>
+                        <div class="top-buttons">
+                            <button class="top-btn">工商画像</button>
+                            <button class="top-btn">司法风险</button>
+                            <button class="top-btn">结算表现</button>
+                            <button class="top-btn">授信适配</button>
+                            <button class="top-btn">营销建议</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 中间内容区域 -->
+                <div class="content-section">
+                    <div class="content-left">
+                        <div class="robot-image">
+                            <img src="public/static/jcdl7.png" alt="灵童">
+                        </div>
+                        <div class="left-content">
+                            <h2 class="content-title">输入企业名称，生成产品推荐线索</h2>
+                            <p class="content-desc">
+                                这是一个面向齐鲁银行对公客户经理和产品经理的集成电路产业链客户营销助手，用于快速了解目标企业、梳理我行合作情况，并生成更适合一线营销使用的产品推荐方案。
+                            </p>
+                            <div class="feature-tags">
+                                <span class="feature-tag">整合工商、司法、结算、授信等多源信息</span>
+                                <span class="feature-tag">自动形成客户画像并给出产品匹配建议</span>
+                                <span class="feature-tag">输出可直接用于客户拜访的营销话术</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="content-right">
+                        <div class="right-title">产品推荐方案</div>
+                        <div class="product-grid">
+                            <div class="product-card">
+                                <div class="card-number">1</div>
+                                <div class="card-title">企业基本信息</div>
+                                <div class="card-desc">工商、司法、行业、高管与股权关系</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="card-number">2</div>
+                                <div class="card-title">行内交易对手分析</div>
+                                <div class="card-desc">在我行交易对手情况表格化输出</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="card-number">3</div>
+                                <div class="card-title">我行结算情况</div>
+                                <div class="card-desc">结算往来情况与关键特征</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="card-number">4</div>
+                                <div class="card-title">金融产品方案</div>
+                                <div class="card-desc">匹配产品方案并整理为表格</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="card-number">5</div>
+                                <div class="card-title">营销话术</div>
+                                <div class="card-desc">结合前述信息生成可落地话术</div>
+                            </div>
+                            <div class="product-card">
+                                <div class="card-number">6</div>
+                                <div class="card-title">更多</div>
+                                <div class="card-desc">产品推荐方案还包含其他补充分析与参考信息</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部输入区域 -->
+                <div class="bottom-section">
+                    <div class="bottom-header">
+                        <div class="bottom-left">
+                            <span class="hint-text">建议输入企业全称，结果会包含产品推荐方向与营销提示。</span>
+                            <span class="example-label">输入示例：</span>
+                            <div class="example-tags">
+                                <span class="example-tag" data-company="青岛华芯晶电科技有限公司">青岛华芯晶电科技有限公司</span>
+                                <span class="example-tag" data-company="核芯互联科技（青岛）有限公司">核芯互联科技（青岛）有限公司</span>
+                            </div>
+                        </div>
+                        <div class="bottom-actions">
+                            <!-- 历史对话按钮已暂时禁用
+                            <button class="action-btn" id="historyBtn">
+                                <span class="icon">⏱</span> 历史对话
+                            </button>
+                            -->
+                            <button class="action-btn" id="newConvBtn">
+                                <span class="icon">+</span> 新建对话
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-box">
+                        <textarea class="input-textarea" id="inputText" placeholder="输入企业名称，或直接描述你想生成的营销分析..."></textarea>
+                        <button class="send-btn" id="sendBtn">
+                            <span>➤</span> 发送
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史对话抽屉 -->
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+    <div class="history-drawer" id="historyDrawer">
+        <div class="history-header">
+            <span class="history-title">历史对话</span>
+            <button class="history-close" id="historyCloseBtn">×</button>
+        </div>
+        <div class="history-content" id="historyContent">
+            <div class="history-empty">暂无历史对话</div>
+        </div>
+    </div>
+
+    <script>
+        // ============ 常量定义（按接口文档 6.1） ============
+        const APP_INFO = 'ai_qing_integrated_circuit';
+        const APP_NAME = '集成电路产业链客户营销助手';
+
+        const QUICK_QUESTIONS = [
+            { id: '1', text: '青岛华芯晶电科技有限公司' },
+            { id: '2', text: '核芯互联科技（青岛）有限公司' }
+        ];
+
+        const CAPABILITY_TAGS = ['工商画像', '司法风险', '结算表现', '授信适配', '营销建议'];
+
+        const OUTPUT_OUTLINE = [
+            { title: '企业基本信息', desc: '工商、司法、行业、高管与股权关系' },
+            { title: '行内交易对手分析', desc: '在我行交易对手情况表格化输出' },
+            { title: '我行结算情况', desc: '结算往来情况与关键特征' },
+            { title: '金融产品方案', desc: '匹配产品方案并整理为表格' },
+            { title: '营销话术', desc: '结合前述信息生成可落地话术' },
+            { title: '更多', desc: '产品推荐方案还包含其他补充分析与参考信息' }
+        ];
+
+        // ============ 状态管理（按接口文档 3.1） ============
+        const state = {
+            inputText: '',
+            messages: [],
+            isLoading: false,
+            historyDrawerVisible: false,
+            conversationHistory: [],
+            historyLoading: false,
+            currentConversationId: null,
+            currentConversationName: null,
+            userId: 0,
+            userName: '默认用户',
+            lingtongToken: null,  // 灵童平台 token
+            tokenExpireTime: null  // token 过期时间戳
+        };
+
+        // Token 有效期（毫秒）- 25分钟，提前5分钟刷新
+        const TOKEN_EXPIRE_MS = 25 * 60 * 1000;
+
+        // 检查 token 是否需要刷新
+        function shouldRefreshToken() {
+            if (!state.lingtongToken || !state.tokenExpireTime) {
+                return true;
+            }
+            // 如果当前时间距离过期时间小于5分钟，则刷新
+            return Date.now() >= (state.tokenExpireTime - 5 * 60 * 1000);
+        }
+
+        // 刷新 token（如果需要）
+        async function refreshTokenIfNeeded() {
+            if (shouldRefreshToken()) {
+                console.log('[Token] Token 即将过期或已过期，正在刷新...');
+                const token = await loginToLingtong();
+                if (token) {
+                    state.tokenExpireTime = Date.now() + TOKEN_EXPIRE_MS;
+                    console.log('[Token] Token 刷新成功，新过期时间:', new Date(state.tokenExpireTime));
+                } else {
+                    console.error('[Token] Token 刷新失败');
+                }
+                return token;
+            }
+            console.log('[Token] Token 仍然有效，无需刷新');
+            return state.lingtongToken;
+        }
+
+        // ============ API 服务层（使用 SDK 平台代理） ============
+        // 使用 SDK_CONFIG 中的 apiBaseUrl，如果不存在则使用默认值
+        // 注意：后端代理路由为 /api/sdk/lingtong/*
+        const API_BASE = (typeof SDK_CONFIG !== 'undefined' && SDK_CONFIG.apiBaseUrl) ? SDK_CONFIG.apiBaseUrl : '/api';
+
+        // 获取 API 基础地址（兼容旧代码）
+        function getApiBase() {
+            return API_BASE;
+        }
+
+        // 灵童平台登录获取 token
+        async function loginToLingtong() {
+            try {
+                // 从 SDK_CONFIG 获取 username（手机号），如果没有配置则使用默认值
+                const username = (typeof SDK_CONFIG !== 'undefined' && SDK_CONFIG.username) ? SDK_CONFIG.username : '18369958788';
+                console.log('[SDK] 使用手机号登录灵童平台:', username);
+
+                // 使用后端代理路由
+                const response = await fetch(API_BASE + '/sdk/lingtong/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username })
+                });
+
+                if (!response.ok) {
+                    throw new Error('登录请求失败: ' + response.status);
+                }
+
+                const data = await response.json();
+                // 仅支持 auth_token 字段
+                const token = data.auth_token;
+                if (token) {
+                    state.lingtongToken = token;
+                    console.log('[SDK] 灵童平台登录成功');
+                    return token;
+                }
+                return null;
+            } catch (error) {
+                console.error('[SDK] 灵童平台登录失败:', error);
+                return null;
+            }
+        }
+
+        // 初始化用户ID和用户名（从 SDK_CONFIG 获取或使用默认值）
+        function initUserInfo() {
+            // 优先从 SDK_CONFIG 获取用户信息
+            if (typeof SDK_CONFIG !== 'undefined' && SDK_CONFIG.custom) {
+                if (SDK_CONFIG.custom.userId) {
+                    state.userId = SDK_CONFIG.custom.userId;
+                }
+                if (SDK_CONFIG.custom.userName) {
+                    state.userName = SDK_CONFIG.custom.userName;
+                }
+            }
+            console.log('[SDK] 用户信息初始化:', state.userId, state.userName);
+        }
+
+        // 从后端获取用户信息（通过 token）
+        async function fetchUserInfoFromBackend() {
+            try {
+                if (!state.lingtongToken) {
+                    console.error('[SDK] 无法获取用户信息：未登录');
+                    return;
+                }
+
+                console.log('[SDK] 正在从后端获取用户信息...');
+                const response = await fetch(API_BASE + '/sdk/lingtong/user-info', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({})
+                });
+
+                if (!response.ok) {
+                    console.error('[SDK] 获取用户信息失败:', response.status);
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('[SDK] 获取到用户信息:', data);
+
+                // 更新 state 中的用户信息
+                if (data.user_id) {
+                    state.userId = data.user_id;
+                }
+                if (data.user_name) {
+                    state.userName = data.user_name;
+                }
+
+                console.log('[SDK] 用户信息已更新:', state.userId, state.userName);
+            } catch (error) {
+                console.error('[SDK] 获取用户信息出错:', error);
+            }
+        }
+
+        // 从后端获取用户信息（通过灵童平台token）
+        async function fetchUserInfoFromBackend() {
+            try {
+                const response = await fetch(API_BASE + '/sdk/lingtong/user-info', {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+
+                if (!response.ok) {
+                    throw new Error('获取用户信息失败: ' + response.status);
+                }
+
+                const result = await response.json();
+                console.log('[SDK] 获取到用户信息:', result);
+
+                // 处理嵌套数据结构 { success: true, data: { user_id: ..., user_name: ... } }
+                const userData = result.data || result;
+                
+                // 更新状态中的用户信息
+                if (userData.user_id) {
+                    state.userId = userData.user_id;
+                }
+                if (userData.user_name) {
+                    state.userName = userData.user_name;
+                }
+                console.log('[SDK] 用户信息已更新:', state.userId, state.userName);
+                return userData;
+            } catch (error) {
+                console.error('[SDK] 获取用户信息失败:', error);
+                return null;
+            }
+        }
+
+        // 初始化时登录并设置用户信息
+        async function init() {
+            // 先初始化用户信息（从SDK_CONFIG获取默认值）
+            initUserInfo();
+            // 然后登录获取token
+            const token = await loginToLingtong();
+            // 登录成功后，从后端获取真实的用户信息
+            if (token) {
+                await fetchUserInfoFromBackend();
+            }
+        }
+        init();
+
+        // 获取请求头，包含认证token
+        function getAuthHeaders() {
+            const headers = { 'Content-Type': 'application/json' };
+            if (state.lingtongToken) {
+                headers['Authorization'] = 'Bearer ' + state.lingtongToken;
+            }
+            return headers;
+        }
+
+        // 创建会话
+        async function createConversation(conversationName) {
+            const response = await fetch(API_BASE + '/sdk/lingtong/conversations', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    conversation_name: conversationName,
+                    user_id: state.userId,
+                    user_name: state.userName,
+                    app_info: APP_INFO
+                })
+            });
+            return response.json();
+        }
+
+        // 获取会话历史列表
+        async function getMyConversations() {
+            const response = await fetch(API_BASE + '/sdk/lingtong/conversations?user_id=' + state.userId + '&app_info=' + APP_INFO, {
+                headers: getAuthHeaders()
+            });
+            return response.json();
+        }
+
+        // 获取会话详情
+        async function getConversationDetail(conversationId) {
+            const response = await fetch(API_BASE + '/sdk/lingtong/conversations/' + conversationId + '?active_at=' + new Date().toISOString());
+            return response.json();
+        }
+
+        // 保存消息
+        async function saveMessage(conversationId, messageId, content, role) {
+            return fetch(API_BASE + '/sdk/lingtong/message', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    conversation_id: conversationId,
+                    message_id: messageId,
+                    content: content,
+                    role: role,
+                    user_id: state.userId,
+                    user_name: state.userName,
+                    app_info: APP_INFO
+                })
+            });
+        }
+
+        // AI 对话接口
+        async function chatWithAI(inputValue, sessionId) {
+            const finalSessionId = sessionId || generateId();
+            const response = await fetch(API_BASE + '/sdk/lingtong/chat?stream=true', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    app_info: APP_INFO,
+                    input_value: inputValue,
+                    tweaks: {},
+                    session_id: finalSessionId
+                })
+            });
+            return response.json();
+        }
+
+        // ============ 工具函数 ============
+
+        // 生成唯一ID
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        // 创建聊天消息对象
+        function createChatMessage(text, sender) {
+            return {
+                id: generateId(),
+                text: text,
+                sender: sender,
+                timestamp: new Date().toISOString()
+            };
+        }
+
+        // 转换历史消息为聊天消息格式
+        function convertHistoryToChatMessages(messages) {
+            return messages.map(msg => ({
+                id: msg.message_id || generateId(),
+                text: msg.content,
+                sender: msg.role === 'user' ? 'user' : 'ai',
+                timestamp: msg.created_at || new Date().toISOString()
+            }));
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            const modalBody = document.querySelector('.modal-body');
+            modalBody.scrollTop = modalBody.scrollHeight;
+        }
+
+        // ============ 核心交互流程 ============
+
+        /**
+         * 2.1 发送消息与AI对话流程
+         * handleSendMessage
+         */
+        async function handleSendMessage() {
+            const input = document.getElementById('inputText');
+            const inputText = input.value.trim();
+            
+            // 输入验证
+            if (!inputText) {
+                alert('请输入消息');
+                return;
+            }
+
+            // 创建用户消息对象
+            const userMessage = createChatMessage(inputText, 'user');
+            
+            // 更新消息列表
+            state.messages = [...state.messages, userMessage];
+            
+            // 清空输入框
+            input.value = '';
+            updateSendButtonState();
+            
+            // 显示用户消息
+            appendMessageToList(userMessage);
+            
+            // 显示消息列表，隐藏欢迎页
+            document.getElementById('messageList').style.display = 'block';
+            document.querySelector('.content-section').style.display = 'none';
+            
+            // 确保会话已创建
+            await ensureConversationReady();
+            
+            // 保存用户消息到数据库
+            await saveMessage(
+                state.currentConversationId,
+                'ai', // message_id
+                inputText,
+                'user'
+            );
+            
+            // 调用AI对话接口
+            await callAIChat(inputText);
+        }
+
+        /**
+         * 确保会话已创建
+         * ensureConversationReady
+         */
+        async function ensureConversationReady() {
+            if (!state.currentConversationId) {
+                // 生成会话名称
+                const conversationName = `集成电路营销助手 - ${new Date().toLocaleString('zh-CN')}`;
+                
+                try {
+                    // 调用创建会话接口
+                    const result = await createConversation(conversationName);
+                    
+                    if (result.id) {
+                        state.currentConversationId = result.id;
+                        state.currentConversationName = conversationName;
+                        
+                        // 更新会话历史列表
+                        updateConversationHistory(result.id, conversationName);
+                    }
+                } catch (error) {
+                    console.error('创建会话失败:', error);
+                    // 使用本地会话ID
+                    state.currentConversationId = 'local_' + generateId();
+                    state.currentConversationName = conversationName;
+                }
+            }
+        }
+
+        /**
+         * 调用AI对话接口（流式响应）
+         */
+        async function callAIChat(inputText) {
+            // 设置加载状态
+            state.isLoading = true;
+            showLoadingState(true);
+
+            // 创建AI消息占位符
+            const aiMessageId = generateId();
+            const aiMessage = createChatMessage('', 'ai');
+            aiMessage.id = aiMessageId;
+
+            // 更新消息列表
+            state.messages = [...state.messages, aiMessage];
+            appendMessageToList(aiMessage);
+
+            // 获取AI消息DOM元素用于更新
+            const messageList = document.getElementById('messageList');
+            const aiMsgEl = messageList.lastElementChild;
+            const aiBodyEl = aiMsgEl.querySelector('.ai-body');
+
+            let fullResponse = '';
+
+            try {
+                // 调用流式AI对话接口
+                const response = await fetch(API_BASE + '/sdk/lingtong/chat?stream=true', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        app_info: APP_INFO,
+                        input_value: inputText,
+                        tweaks: {},
+                        session_id: state.currentConversationId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('AI对话请求失败: ' + response.status);
+                }
+
+                // 读取SSE流
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        const trimmedLine = line.trim();
+                        if (!trimmedLine || trimmedLine === '[DONE]') continue;
+                        
+                        let data = null;
+                        
+                        // 处理 SSE 格式: data: {...}
+                        if (trimmedLine.startsWith('data: ')) {
+                            data = trimmedLine.substring(6).trim();
+                        } else if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
+                            // 处理直接返回的 JSON: {...}
+                            data = trimmedLine;
+                        }
+                        
+                        if (data) {
+                            try {
+                                const parsed = JSON.parse(data);
+                                // 提取文本内容（根据实际响应格式调整）
+                                let textChunk = '';
+                                if (parsed.data && typeof parsed.data === 'string') {
+                                    // 处理 {success:true, flow_id:"...", data:"..."} 格式
+                                    textChunk = parsed.data;
+                                } else if (parsed.text) {
+                                    textChunk = parsed.text;
+                                } else if (parsed.content) {
+                                    textChunk = parsed.content;
+                                } else if (parsed.delta?.content) {
+                                    textChunk = parsed.delta.content;
+                                } else if (typeof parsed === 'string') {
+                                    textChunk = parsed;
+                                }
+
+                                if (textChunk) {
+                                    fullResponse += textChunk;
+                                    // 实时更新UI
+                                    if (aiBodyEl) {
+                                        aiBodyEl.innerHTML = formatMarkdown(fullResponse);
+                                    }
+                                    scrollToBottom();
+                                }
+                            } catch (e) {
+                                // 如果不是JSON，直接作为文本
+                                fullResponse += data;
+                                if (aiBodyEl) {
+                                    aiBodyEl.innerHTML = formatMarkdown(fullResponse);
+                                }
+                                scrollToBottom();
+                            }
+                        }
+                    }
+                }
+
+                // 更新消息对象中的完整内容
+                aiMessage.text = fullResponse;
+
+                // 只有在获取到实际内容后才保存AI消息到数据库
+                if (fullResponse && fullResponse.trim()) {
+                    await saveMessage(
+                        state.currentConversationId,
+                        aiMessage.id,
+                        fullResponse,
+                        'assistant'
+                    );
+                }
+
+            } catch (error) {
+                console.error('AI对话失败:', error);
+                // 显示错误消息
+                const errorText = '抱歉，AI服务暂时不可用，请稍后重试。';
+                fullResponse = errorText;
+                aiMessage.text = errorText;
+                if (aiBodyEl) {
+                    aiBodyEl.innerHTML = formatMarkdown(errorText);
+                }
+            } finally {
+                // 清理状态
+                state.isLoading = false;
+                showLoadingState(false);
+                scrollToBottom();
+            }
+        }
+
+        /**
+         * 2.2 查看历史对话流程
+         * handleShowHistory
+         */
+        async function handleShowHistory() {
+            // 打开历史抽屉
+            toggleHistoryDrawer();
+            
+            if (state.historyDrawerVisible) {
+                // 获取会话历史列表
+                await loadConversationHistory();
+            }
+        }
+
+        /**
+         * 获取会话历史列表
+         */
+        async function loadConversationHistory() {
+            state.historyLoading = true;
+            const content = document.getElementById('historyContent');
+            content.innerHTML = '<div class="history-loading">加载中...</div>';
+            
+            try {
+                // 调用获取会话历史列表接口
+                const result = await getMyConversations();
+
+                // 处理返回的数据结构 {data: [...]}
+                const history = result.data || result;
+
+                if (Array.isArray(history) && history.length > 0) {
+                    state.conversationHistory = history;
+                    renderConversationHistory(history);
+                } else {
+                    // 没有历史记录
+                    state.conversationHistory = [];
+                    content.innerHTML = '<div class="history-empty">暂无历史对话</div>';
+                }
+            } catch (error) {
+                console.error('获取历史列表失败:', error);
+                state.conversationHistory = [];
+                content.innerHTML = '<div class="history-empty">获取历史记录失败</div>';
+            } finally {
+                state.historyLoading = false;
+            }
+        }
+
+        /**
+         * 渲染会话历史列表
+         */
+        function renderConversationHistory(history) {
+            const content = document.getElementById('historyContent');
+            
+            if (!history || history.length === 0) {
+                content.innerHTML = '<div class="history-empty">暂无历史对话</div>';
+                return;
+            }
+            
+            content.innerHTML = history.map(item => `
+                <div class="history-item" onclick="loadHistoryConversation('${item.id}')">
+                    <div class="history-item-title">${item.conversation_name}</div>
+                    <div class="history-item-time">${formatTime(item.active_at || item.created_at)}</div>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * 格式化时间
+         */
+        function formatTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return '刚刚';
+            if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+            if (diff < 172800000) return '昨天';
+            
+            return date.toLocaleDateString('zh-CN');
+        }
+
+        /**
+         * 2.3 加载历史对话详情流程
+         * loadHistoryConversation
+         */
+        async function loadHistoryConversation(conversationId) {
+            try {
+                // 调用获取会话详情接口
+                const result = await getConversationDetail(conversationId);
+                
+                // 更新当前会话名称
+                if (result.conversation) {
+                    state.currentConversationName = result.conversation.conversation_name;
+                    state.currentConversationId = result.conversation.id || conversationId;
+                } else {
+                    state.currentConversationId = conversationId;
+                }
+                
+                // 转换消息格式
+                let chatMessages = [];
+                if (result.messages && result.messages.length > 0) {
+                    chatMessages = convertHistoryToChatMessages(result.messages);
+                }
+                
+                // 更新消息列表
+                state.messages = chatMessages;
+                
+                // 渲染消息列表
+                renderMessageList(chatMessages);
+                
+                // 关闭历史抽屉
+                toggleHistoryDrawer();
+                
+                // 显示消息列表，隐藏欢迎页
+                document.getElementById('messageList').style.display = 'block';
+                document.querySelector('.content-section').style.display = 'none';
+                
+            } catch (error) {
+                console.error('加载历史对话失败:', error);
+                alert('加载历史对话失败，请稍后重试');
+            }
+        }
+
+        /**
+         * 2.4 新建会话流程
+         * handleNewConversation
+         */
+        async function handleNewConversation() {
+            console.log('[新建对话] 开始执行');
+            
+            // 1. 清理状态
+            console.log('[新建对话] 清理状态');
+            state.messages = [];
+            state.currentConversationId = null;
+            state.currentConversationName = null;
+            
+            // 清空并隐藏消息列表
+            var messageList = safeGetElement('messageList');
+            if (messageList) {
+                messageList.innerHTML = '';
+                messageList.style.display = 'none';
+                console.log('[新建对话] 消息列表已清理并隐藏');
+            }
+            
+            // 清空输入框
+            var inputText = safeGetElement('inputText');
+            if (inputText) {
+                inputText.value = '';
+            }
+            updateSendButtonState();
+            
+            // 生成会话名称
+            const conversationName = '集成电路营销助手 - ' + new Date().toLocaleString('zh-CN');
+
+            try {
+                // 2. 检查并刷新 token（如果需要）
+                console.log('[新建对话] 检查 token 状态...');
+                await refreshTokenIfNeeded();
+                
+                // 3. 调用API创建会话
+                console.log('[新建对话] 调用API创建会话');
+                const result = await createConversation(conversationName);
+                console.log('[新建会话] API返回:', result);
+
+                // 更新状态 - 处理嵌套的data结构
+                const conversationData = result.data || result;
+                state.currentConversationId = conversationData.id || conversationData.conversation_id || ('local_' + generateId());
+                state.currentConversationName = conversationName;
+                state.messages = [];
+
+                // 清空并隐藏消息列表
+                var messageList = safeGetElement('messageList');
+                if (messageList) {
+                    messageList.innerHTML = '';
+                    messageList.style.display = 'none';
+                    console.log('[新建对话] 消息列表已隐藏');
+                }
+
+                // 显示欢迎页
+                var contentSection = document.querySelector('.content-section');
+                if (contentSection) {
+                    contentSection.style.display = 'flex';
+                    console.log('[新建对话] 欢迎页已显示');
+                }
+                
+                // 确保其他内容区域也被正确处理
+                var modalBody = document.querySelector('.modal-body');
+                if (modalBody) {
+                    modalBody.scrollTop = 0;
+                }
+
+                // 清空输入框
+                var inputText = safeGetElement('inputText');
+                if (inputText) {
+                    inputText.value = '';
+                }
+                updateSendButtonState();
+
+                // 更新会话历史列表（添加到头部）
+                updateConversationHistory(state.currentConversationId, conversationName);
+
+                // 显示成功提示
+                console.log('新建会话成功');
+
+            } catch (error) {
+                console.error('新建会话失败:', error);
+                // 本地创建
+                state.currentConversationId = 'local_' + generateId();
+                state.currentConversationName = conversationName;
+                state.messages = [];
+
+                var messageList = safeGetElement('messageList');
+                if (messageList) {
+                    messageList.innerHTML = '';
+                    messageList.style.display = 'none';
+                }
+                var contentSection = document.querySelector('.content-section');
+                if (contentSection) {
+                    contentSection.style.display = 'flex';
+                }
+                var inputText = safeGetElement('inputText');
+                if (inputText) {
+                    inputText.value = '';
+                }
+                updateSendButtonState();
+            }
+        }
+
+        /**
+         * 更新会话历史列表
+         */
+        function updateConversationHistory(id, name) {
+            // 检查是否已存在
+            const exists = state.conversationHistory.some(c => c.id === id);
+            if (exists) return;
+            
+            // 添加到列表头部
+            const newItem = {
+                id: id,
+                conversation_name: name,
+                created_at: new Date().toISOString(),
+                active_at: new Date().toISOString(),
+                message_count: 0
+            };
+            
+            state.conversationHistory = [newItem, ...state.conversationHistory];
+        }
+
+        // ============ UI 操作函数 ============
+
+        // 显示/隐藏加载状态
+        function showLoadingState(show) {
+            const loading = document.getElementById('loadingState');
+            loading.style.display = show ? 'flex' : 'none';
+        }
+
+        // 添加消息到列表
+        function appendMessageToList(message) {
+            const messageList = document.getElementById('messageList');
+            const msgEl = document.createElement('div');
+            msgEl.className = `message-item ${message.sender}`;
+            msgEl.innerHTML = `
+                <div class="message-avatar">${message.sender === 'user' ? '我' : 'AI'}</div>
+                <div class="message-content">
+                    ${message.sender === 'ai' ? '<div class="ai-title">智能分析结果</div>' : ''}
+                    <div class="ai-body">${formatMarkdown(message.text)}</div>
+                </div>
+            `;
+            messageList.appendChild(msgEl);
+            scrollToBottom();
+        }
+
+        // 渲染消息列表
+        function renderMessageList(messages) {
+            const messageList = document.getElementById('messageList');
+            messageList.innerHTML = messages.map(msg => `
+                <div class="message-item ${msg.sender}">
+                    <div class="message-avatar">${msg.sender === 'user' ? '我' : 'AI'}</div>
+                    <div class="message-content">
+                        ${msg.sender === 'ai' ? '<div class="ai-title">智能分析结果</div>' : ''}
+                        <div class="ai-body">${formatMarkdown(msg.text)}</div>
+                    </div>
+                </div>
+            `).join('');
+            scrollToBottom();
+        }
+
+        // 简单的 Markdown 格式化（支持标题、列表、粗体）
+        function formatMarkdown(text) {
+            if (!text) return '';
+            
+            // 转义 HTML
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            
+            // 标题
+            html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+            html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+            
+            // 粗体
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            
+            // 列表
+            html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+            
+            // 表格（简单处理）
+            html = html.replace(/\|(.+)\|/g, (match) => {
+                const cells = match.split('|').filter(c => c.trim());
+                return '<div class="table-row">' + cells.map(function(c) { return '<span>' + c.trim() + '</span>'; }).join('') + '</div>';
+            });
+            
+            // 分割线
+            html = html.replace(/^---$/gm, '<hr>');
+            
+            // 换行
+            html = html.replace(/\n/g, '<br>');
+            
+            return html;
+        }
+
+        // 更新发送按钮状态
+        function updateSendButtonState() {
+            const btn = document.getElementById('sendBtn');
+            const input = document.getElementById('inputText');
+            if (input.value.trim()) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+
+        // 切换历史抽屉
+        function toggleHistoryDrawer() {
+            const drawer = document.getElementById('historyDrawer');
+            const overlay = document.getElementById('drawerOverlay');
+            
+            if (drawer.classList.contains('show')) {
+                drawer.classList.remove('show');
+                overlay.classList.remove('show');
+                state.historyDrawerVisible = false;
+            } else {
+                drawer.classList.add('show');
+                overlay.classList.add('show');
+                state.historyDrawerVisible = true;
+                loadConversationHistory();
+            }
+        }
+
+        // 设置输入内容
+        function setInput(text) {
+            document.getElementById('inputText').value = text;
+            updateSendButtonState();
+        }
+
+
+
+        // 发送消息（兼容旧调用）
+        function sendMessage() {
+            handleSendMessage();
+        }
+
+        // 新建对话（兼容旧调用）
+        function newConversation() {
+            handleNewConversation();
+        }
+
+        // ============ 悬浮图标初始化 ============
+        function initDraggableIcon() {
+            // 图标固定在右下角，无需拖拽功能
+            const icon = document.querySelector('.floating-icon');
+            if (icon) {
+                icon.style.cursor = 'pointer';
+            }
+        }
+
+        // ============ 事件监听 ============
+
+        // 安全的DOM查询函数（兼容SDK环境）
+        function safeGetElement(id) {
+            // 优先使用SDK提供的DOM辅助对象
+            if (typeof __SDK_DOM__ !== 'undefined' && __SDK_DOM__ && __SDK_DOM__.getElementById) {
+                return __SDK_DOM__.getElementById(id);
+            }
+            // 回退到标准document方法
+            return document.getElementById(id);
+        }
+
+        // 点击遮罩关闭
+        var modalOverlay = safeGetElement('modalOverlay');
+        if (modalOverlay) {
+            modalOverlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    modalOverlay.classList.remove('show');
+                    document.body.style.overflow = '';
+                }
+            });
+        }
+
+        // ESC键关闭
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                if (state.historyDrawerVisible) {
+                    toggleHistoryDrawer();
+                } else {
+                    var overlay = safeGetElement('modalOverlay');
+                    if (overlay) {
+                        overlay.classList.remove('show');
+                    }
+                    document.body.style.overflow = '';
+                }
+            }
+        });
+
+        // 回车发送
+        var inputTextEl = document.getElementById('inputText');
+        if (inputTextEl) {
+            inputTextEl.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                }
+            });
+        }
+
+        // 发送按钮点击事件（移除HTML中onclick属性后的替代方案）
+        var sendBtnEl = document.getElementById('sendBtn');
+        if (sendBtnEl) {
+            sendBtnEl.addEventListener('click', function(e) {
+                e.preventDefault();
+                handleSendMessage();
+            });
+        }
+
+        // 历史对话抽屉关闭按钮
+        var historyCloseBtn = document.querySelector('.history-close');
+        if (historyCloseBtn) {
+            historyCloseBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleHistoryDrawer();
+            });
+        }
+
+        // 新建对话按钮
+        var newConvBtn = document.getElementById('newConvBtn');
+        if (newConvBtn) {
+            newConvBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[点击] 新建对话按钮');
+                handleNewConversation();
+            });
+        }
+
+        // 浮动图标点击事件
+        var floatingIcon = document.querySelector('.floating-icon');
+        if (floatingIcon) {
+            floatingIcon.addEventListener('click', function(e) {
+                e.preventDefault();
+                var modal = safeGetElement('modalOverlay');
+                if (modal) {
+                    modal.classList.add('show');
+                    document.body.style.overflow = 'hidden';
+                }
+            });
+        }
+
+        // 弹窗关闭按钮
+        var modalCloseBtn = document.querySelector('.modal-close');
+        if (modalCloseBtn) {
+            modalCloseBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var modal = safeGetElement('modalOverlay');
+                if (modal) {
+                    modal.classList.remove('show');
+                    document.body.style.overflow = '';
+                }
+            });
+        }
+
+        // 历史对话抽屉遮罩点击关闭
+        var drawerOverlay = safeGetElement('drawerOverlay');
+        if (drawerOverlay) {
+            drawerOverlay.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleHistoryDrawer();
+            });
+        }
+
+        // 历史对话抽屉关闭按钮
+        var historyCloseBtn = document.querySelector('.history-close');
+        if (historyCloseBtn) {
+            historyCloseBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleHistoryDrawer();
+            });
+        }
+
+        // 历史对话按钮
+        var historyActionBtn = document.querySelector('.action-btn');
+        if (historyActionBtn) {
+            historyActionBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleHistoryDrawer();
+            });
+        }
+
+        // 示例标签点击事件
+        var exampleTags = document.querySelectorAll('.example-tag');
+        exampleTags.forEach(function(tag) {
+            tag.addEventListener('click', function(e) {
+                e.preventDefault();
+                var text = this.textContent || this.innerText;
+                setInput(text);
+            });
+        });
+
+        // ============ 初始化 ============
+        initDraggableIcon();
+    </script>
+</body>
+</html>
