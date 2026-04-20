@@ -348,6 +348,58 @@ psql -f init-db.sql
 
 ## 部署说明
 
+### 方式一：Docker 部署（推荐）
+
+#### 1. 构建 Docker 镜像
+
+```bash
+# 构建前端镜像
+docker build -t sdk-platform-frontend:latest -f Dockerfile.frontend .
+
+# 构建后端镜像
+docker build -t sdk-platform-backend:latest -f Dockerfile.backend .
+```
+
+#### 2. 使用 Docker Compose 启动
+
+```bash
+# 启动所有服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+```
+
+#### 3. 环境变量配置
+
+创建 `.env` 文件：
+
+```env
+# 数据库配置（外网地址）
+DATABASE_URL=postgresql://user:password@your-db-host:5432/dbname
+
+# Redis 配置（外网地址）
+REDIS_URL=redis://your-redis-host:6379/0
+
+# Supabase 配置
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-service-role-key
+
+# JWT 密钥
+SECRET_KEY=your-secret-key-here
+
+# 应用配置
+APP_NAME=SDK Share Platform
+APP_VERSION=1.0.0
+ENVIRONMENT=production
+PORT=8000
+```
+
+### 方式二：手动部署
+
 1. 设置环境变量:
    - `SUPABASE_URL`: Supabase 项目 URL
    - `SUPABASE_KEY`: Supabase 服务端密钥
@@ -364,6 +416,27 @@ psql -f init-db.sql
    - 后端 API 代理
    - Gzip 压缩
    - 缓存策略
+
+### Docker 镜像说明
+
+| 镜像 | 说明 | 端口 |
+|------|------|------|
+| sdk-platform-frontend | Next.js 前端 | 3000 |
+| sdk-platform-backend | FastAPI 后端 | 8000 |
+| nginx | 反向代理 | 80/443 |
+
+### 健康检查
+
+```bash
+# 检查前端
+curl http://localhost:3000
+
+# 检查后端
+curl http://localhost:8000/health
+
+# 检查 API
+curl http://localhost:8000/api/health
+```
 
 ## 变更记录
 
