@@ -14,6 +14,7 @@ backend/.venv/
 build/
 out/
 dist/
+.next/
 
 # IDE files
 .vscode/

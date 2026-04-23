@@ -1,137 +1,36 @@
-# ============================================
-# SDK Share Platform - Docker Compose
-# 前后端分离架构，支持高并发
-# ============================================
-# 使用方式：
-#   开发环境：docker-compose up -d
-#   生产环境：docker-compose -f docker-compose.yml up -d
-# ============================================
-
 version: '3.8'
 
 services:
-  # ==========================================
-  # 前端服务 (Next.js)
-  # ==========================================
+  # 前端
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: sdk-share-frontend:1.0.0
     container_name: sdk-share-frontend
+    expose:
+      - "5000"
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-3000}:5000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:8000}
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - sdk-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-  # ==========================================
-  # 后端服务 (FastAPI)
-  # ==========================================
+  # 后端
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: sdk-share-backend:1.0.0
     container_name: sdk-share-backend
+    expose:
+      - "8000"
     restart: unless-stopped
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
-    environment:
-      - ENVIRONMENT=production
-      - DEBUG=${DEBUG:-false}
-      - HOST=0.0.0.0
-      - PORT=8000
-      - WORKERS=${WORKERS:-4}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - DATABASE_POOL_SIZE=${DATABASE_POOL_SIZE:-20}
-      - DATABASE_MAX_OVERFLOW=${DATABASE_MAX_OVERFLOW:-10}
-      # ⚠️ 必须配置外网 Redis 地址，禁止使用内网
-      - REDIS_URL=${REDIS_URL:?REDIS_URL is required - must use external Redis}
-      - CACHE_ENABLED=${CACHE_ENABLED:-true}
-      - CACHE_TTL=${CACHE_TTL:-300}
-      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
-      - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-100}
-      - FRONTEND_DOMAIN=${FRONTEND_DOMAIN:-}
-    networks:
-      - sdk-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 4G
-        reservations:
-          cpus: '1'
-          memory: 1G
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    volumes:
-      - backend-logs:/app/logs
 
-  # ==========================================
-  # Nginx 反向代理（可选）
-  # ==========================================
+  # Nginx 反向代理
   nginx:
     image: nginx:alpine
     container_name: sdk-share-nginx
-    restart: unless-stopped
     ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-      - nginx-logs:/var/log/nginx
     depends_on:
-      frontend:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-    networks:
-      - sdk-network
-    profiles:
-      - production
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-volumes:
-  backend-logs:
-    driver: local
-  nginx-logs:
-    driver: local
+      - frontend
+      - backend
+    restart: unless-stopped
 
 networks:
-  sdk-network:
-    driver: bridge
+  default:
+    name: sdk-network

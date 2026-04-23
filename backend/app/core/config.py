@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # 前端域名（用于生成嵌入代码）
     FRONTEND_DOMAIN: Optional[str] = None
 
+    # SDK 服务平台地址（用于生成 SDK 中的 API 基础地址）
+    # 如果未配置，将使用相对路径（让浏览器自动使用当前域名）
+    SDK_SERVICE_URL: str = "http://localhost:3000"  # 默认使用前端地址
+
     # 灵童平台配置
     LINGTONG_BASE_URL: str = "http://localhost:8800"
     LINGTONG_APP_ID: Optional[str] = None
@@ -51,7 +55,7 @@ class Settings(BaseSettings):
     LINGTONG_APP_INFO: str = "digital_intelligent_audit"  # 默认应用标识
 
     class Config:
-        env_file = ".env"
+        env_file = ".env"  # 从 backend 目录读取 .env
         env_file_encoding = "utf-8"
         case_sensitive = True
         extra = "ignore"

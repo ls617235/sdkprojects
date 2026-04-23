@@ -268,22 +268,24 @@ def generate_simple_bundle(
     json_dumps_js_b64 = json.dumps(js_b64)
     
     # 从 SDK 配置或后端配置读取 API 地址
-    # 优先使用 sdk_config 中的配置，否则使用后端 .env 配置
-    # 默认使用后端配置的 LINGTONG_BASE_URL，避免前端相对路径问题
+    # 使用 SDK_SERVICE_URL 作为 JS SDK 的固定请求地址（不允许第三方修改）
     api_base_url = None
     app_info = "digital_intelligent_audit"
     
-    # 首先获取后端配置
-    if hasattr(settings, 'LINGTONG_BASE_URL') and settings.LINGTONG_BASE_URL:
-        api_base_url = settings.LINGTONG_BASE_URL + "/api"
+    # 强制使用后端配置的 SDK 服务平台地址（不允许 sdk_config 覆盖）
+    # 这是为了确保 JS SDK 总是请求 SDK 服务平台，而不是第三方自己的地址
+    if hasattr(settings, 'SDK_SERVICE_URL') and settings.SDK_SERVICE_URL:
+        api_base_url = settings.SDK_SERVICE_URL
+    elif hasattr(settings, 'LINGTONG_BASE_URL') and settings.LINGTONG_BASE_URL:
+        # 兼容性处理：如果没有 SDK_SERVICE_URL，使用 LINGTONG_BASE_URL
+        api_base_url = settings.LINGTONG_BASE_URL
     if hasattr(settings, 'LINGTONG_APP_INFO') and settings.LINGTONG_APP_INFO:
         app_info = settings.LINGTONG_APP_INFO
     
-    # 如果 sdk_config 提供了配置，则覆盖后端配置
+    # 注意：不再允许 sdk_config 覆盖 api_base_url
+    # 这是为了确保 JS SDK 固定请求 SDK 服务平台，防止第三方系统修改地址
     if sdk_config:
-        # SDK 配置可以覆盖后端配置
-        if sdk_config.get("apiBaseUrl"):
-            api_base_url = sdk_config.get("apiBaseUrl")
+        # 只允许覆盖 appInfo，不允许覆盖 apiBaseUrl
         if sdk_config.get("appInfo"):
             app_info = sdk_config.get("appInfo")
     
@@ -327,11 +329,18 @@ def generate_simple_bundle(
     var SDK_JS = decodeB64(__JSON_JS_B64__);
 
     // 从后端 env 配置的默认 API 地址 (JSON格式，已转义)
-    var DEFAULT_API_BASE_URL = __DEFAULT_API_CONFIG_JSON__;
+    var DEFAULT_API_CONFIG = __DEFAULT_API_CONFIG_JSON__;
     
     // 灵童平台用户认证信息（从第三方页面传入）
     var LINGTONG_USER_TOKEN = null;
     var LINGTONG_USER_INFO = null;
+    var LINGTONG_LOGIN_IN_PROGRESS = false;  // 防止重复登录的锁
+    
+    // 获取 SDK 服务平台的固定地址（不允许第三方修改）
+    function getSDKServiceUrl() {
+        // 固定使用后端配置的 SDK 服务平台地址
+        return DEFAULT_API_CONFIG.apiBaseUrl || '';
+    }
     
     // 自动登录灵童平台
     async function loginToLingtong() {
@@ -345,13 +354,19 @@ def generate_simple_bundle(
                 return null;
             }
             
+            var sdkServiceUrl = getSDKServiceUrl();
+            if (!sdkServiceUrl) {
+                console.error('[SDK] SDK 服务平台地址未配置');
+                return null;
+            }
+            
             console.log('[SDK] 正在登录灵童平台，用户名:', username);
             
-            // 调用登录接口获取 token
-            var loginResponse = await fetch(config.apiBaseUrl + '/api/login/account_dan', {
+            // 调用登录接口获取 token（固定请求 SDK 服务平台代理接口）
+            var loginResponse = await fetch(sdkServiceUrl + '/api/lingtong/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username })
+                body: JSON.stringify({ username: username, login_type: 'account' })
             });
             
             if (!loginResponse.ok) {
@@ -379,8 +394,6 @@ def generate_simple_bundle(
     // 获取灵童平台用户信息
     async function getLingtongUserInfo() {
         try {
-            var config = getHostConfig();
-            
             if (!LINGTONG_USER_TOKEN) {
                 console.log('[SDK] 没有 token，无法获取用户信息');
                 return null;
@@ -388,14 +401,17 @@ def generate_simple_bundle(
             
             console.log('[SDK] 正在获取灵童平台用户信息');
             
+            // 【重要】使用固定的 SDK 服务平台地址，不使用第三方配置的 apiBaseUrl
+            var sdkServiceUrl = DEFAULT_API_CONFIG.apiBaseUrl || '/api';
+            
             // 调用后端代理接口获取用户信息（而不是直接调用灵童平台）
-            var userResponse = await fetch(config.apiBaseUrl + '/api/sdk/lingtong/user-info', {
+            var userResponse = await fetch(sdkServiceUrl + '/api/sdk/lingtong/user-info', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + LINGTONG_USER_TOKEN
                 },
-                body: JSON.stringify({})
+                body: JSON.stringify({auth_token: LINGTONG_USER_TOKEN})
             });
             
             if (!userResponse.ok) {
@@ -411,6 +427,17 @@ def generate_simple_bundle(
             if (typeof window !== 'undefined') {
                 window.LINGTONG_USER_INFO = LINGTONG_USER_INFO;
                 window.LINGTONG_USER_TOKEN = LINGTONG_USER_TOKEN;
+                
+                // 触发登录成功事件，通知用户代码
+                var loginEvent = new CustomEvent('lingtong-login-success', {
+                    detail: {
+                        user_id: LINGTONG_USER_INFO.user_id,
+                        user_name: LINGTONG_USER_INFO.user_name,
+                        token: LINGTONG_USER_TOKEN
+                    }
+                });
+                window.dispatchEvent(loginEvent);
+                console.log('[SDK] 已触发登录成功事件');
             }
             
             return LINGTONG_USER_INFO;
@@ -420,6 +447,9 @@ def generate_simple_bundle(
         }
     }
     
+    // 默认用户名（用于灵童平台登录）
+    var DEFAULT_USERNAME = '18369958788';
+    
     function getHostConfig() {
         if (typeof window !== 'undefined' && window[CONFIG_KEY]) {
             var hostConfig = window[CONFIG_KEY];
@@ -427,11 +457,17 @@ def generate_simple_bundle(
             if (!hostConfig.apiBaseUrl && DEFAULT_API_CONFIG.apiBaseUrl) {
                 hostConfig.apiBaseUrl = DEFAULT_API_CONFIG.apiBaseUrl;
             }
+            // 如果没有配置 username，使用默认用户名
+            if (!hostConfig.username && !hostConfig.phone && !hostConfig.mobile) {
+                hostConfig.username = DEFAULT_USERNAME;
+                console.log('[SDK] 使用默认用户名:', DEFAULT_USERNAME);
+            }
             return hostConfig;
         }
         // 如果没有宿主配置，返回默认配置
         return {
-            apiBaseUrl: DEFAULT_API_CONFIG.apiBaseUrl || '/api'
+            apiBaseUrl: DEFAULT_API_CONFIG.apiBaseUrl || '/api',
+            username: DEFAULT_USERNAME
         };
     }
 
@@ -608,11 +644,36 @@ def generate_simple_bundle(
         var processedHtml = tempDiv.innerHTML;
         
         // 灵童平台 API 交互 - 必须在 SDK 实例创建前定义
+        // 【修改】使用 /api/lingtong/request 作为通用代理接口
         function lingtongAPI(endpoint, options) {
             if (options === void 0) { options = {}; }
-            var config = getHostConfig();
-            var baseUrl = config.apiBaseUrl || 'https://lingtong-platform.com/api';
-            var token = config.token || config.apiKey;
+            // 使用固定的 SDK 服务平台地址，不允许第三方配置
+            var baseUrl = DEFAULT_API_CONFIG.apiBaseUrl || '/api';
+            var token = LINGTONG_USER_TOKEN || (config.custom && config.custom.token);
+            
+            // 解析 endpoint，分离路径和查询参数
+            var endpointParts = endpoint.split('?');
+            var endpointPath = endpointParts[0];
+            var endpointQuery = endpointParts[1] || '';
+            
+            // 构建查询参数对象
+            var params = {};
+            if (endpointQuery) {
+                endpointQuery.split('&').forEach(function(param) {
+                    var parts = param.split('=');
+                    if (parts[0]) {
+                        params[parts[0]] = decodeURIComponent(parts[1] || '');
+                    }
+                });
+            }
+            
+            // 构建请求体
+            var requestBody = {
+                endpoint: endpointPath,
+                method: options.method || 'GET',
+                data: options.body ? JSON.parse(options.body) : null,
+                params: Object.keys(params).length > 0 ? params : null
+            };
             
             console.log('[SDK] 发送灵童平台请求:', {
                 endpoint: endpoint,
@@ -622,12 +683,15 @@ def generate_simple_bundle(
                 timestamp: new Date().toISOString()
             });
             
-            return fetch(baseUrl + endpoint, Object.assign({}, options, {
+            // 【修改】使用 /api/lingtong/request 作为通用代理接口
+            return fetch(baseUrl + '/api/lingtong/request', {
+                method: 'POST',
                 headers: Object.assign({
                     'Content-Type': 'application/json',
                     'Authorization': token ? 'Bearer ' + token : ''
-                }, options.headers)
-            })).then(function(response) {
+                }, options.headers),
+                body: JSON.stringify(requestBody)
+            }).then(function(response) {
                 console.log('[SDK] 灵童平台响应:', {
                     endpoint: endpoint,
                     status: response.status,
@@ -647,10 +711,27 @@ def generate_simple_bundle(
                 });
                 return data;
             }).catch(function(error) {
+                // 检查是否是 401 未授权错误（token 过期）
+                if (error.message && error.message.includes('401')) {
+                    console.log('[SDK] Token 可能已过期，尝试重新登录...');
+                    // 清除登录状态，重新登录
+                    LINGTONG_LOGIN_ATTEMPTED = false;
+                    LINGTONG_USER_TOKEN = null;
+                    return loginToLingtong().then(function(newToken) {
+                        if (newToken) {
+                            console.log('[SDK] 重新登录成功，重试请求');
+                            // 重试原请求
+                            return lingtongAPI(endpoint, options);
+                        } else {
+                            throw new Error('重新登录失败');
+                        }
+                    });
+                }
+                
                 console.log('[SDK] 请求错误详情:');
                 console.log('  endpoint:', endpoint);
                 console.log('  baseUrl:', baseUrl);
-                console.log('  fullUrl:', baseUrl + endpoint);
+                console.log('  proxyUrl:', baseUrl + '/api/lingtong/request');
                 console.log('  error.message:', error.message);
                 console.log('  error.name:', error.name);
                 if (error.cause) {
@@ -680,7 +761,7 @@ def generate_simple_bundle(
                     var userName = (typeof LINGTONG_USER_INFO !== 'undefined' && LINGTONG_USER_INFO && LINGTONG_USER_INFO.user_name) 
                         ? LINGTONG_USER_INFO.user_name 
                         : (config.custom && config.custom.userName ? config.custom.userName : (config.userName || 'anonymous'));
-                    return lingtongAPI('/api/sdk/lingtong/chat', {
+                    return lingtongAPI('/api/chat', {
                         method: 'POST',
                         body: JSON.stringify({ 
                             message: message,
@@ -697,7 +778,7 @@ def generate_simple_bundle(
                     var userName = (typeof LINGTONG_USER_INFO !== 'undefined' && LINGTONG_USER_INFO && LINGTONG_USER_INFO.user_name) 
                         ? LINGTONG_USER_INFO.user_name 
                         : (config.custom && config.custom.userName ? config.custom.userName : (config.userName || 'anonymous'));
-                    return lingtongAPI('/api/sdk/lingtong/chat?stream=true', {
+                    return lingtongAPI('/api/chat?stream=true', {
                         method: 'POST',
                         body: JSON.stringify({ 
                             message: message,
@@ -717,7 +798,7 @@ def generate_simple_bundle(
                     var userName = (typeof LINGTONG_USER_INFO !== 'undefined' && LINGTONG_USER_INFO && LINGTONG_USER_INFO.user_name) 
                         ? LINGTONG_USER_INFO.user_name 
                         : (config.custom && config.custom.userName ? config.custom.userName : '默认用户');
-                    return lingtongAPI('/api/sdk/lingtong/conversations', {
+                    return lingtongAPI('/api/conversations', {
                         method: 'POST',
                         body: JSON.stringify({ 
                             conversation_name: conversation_name,
@@ -729,7 +810,7 @@ def generate_simple_bundle(
                 },
                 getConversationList: function(options) {
                     var opts = options || {};
-                    var url = '/api/sdk/lingtong/myConversations';
+                    var url = '/api/myConversations';
                     var params = [];
                     if (opts.user_id) params.push('user_id=' + opts.user_id);
                     if (opts.app_info) params.push('app_info=' + opts.app_info);
@@ -737,7 +818,7 @@ def generate_simple_bundle(
                     return lingtongAPI(url);
                 },
                 getConversationDetail: function(conversationId) { 
-                    return lingtongAPI('/api/sdk/lingtong/conversations/' + conversationId + '?active_at=' + new Date().toISOString()); 
+                    return lingtongAPI('/api/conversations/' + conversationId + '?active_at=' + new Date().toISOString()); 
                 },
                 saveMessage: function(options) {
                     var config = getHostConfig();
@@ -747,7 +828,7 @@ def generate_simple_bundle(
                                  (config.custom && config.custom.userId ? config.custom.userId : '1');
                     var userName = (LINGTONG_USER_INFO && LINGTONG_USER_INFO.user_name) ? LINGTONG_USER_INFO.user_name : 
                                    (config.custom && config.custom.userName ? config.custom.userName : 'anonymous');
-                    return lingtongAPI('/api/sdk/lingtong/message', {
+                    return lingtongAPI('/api/message', {
                         method: 'POST',
                         body: JSON.stringify({ 
                             conversation_id: opts.conversation_id || null,
@@ -760,8 +841,8 @@ def generate_simple_bundle(
                         })
                     });
                 },
-                getFlowList: function() { return lingtongAPI('/api/sdk/lingtong/flowlist'); },
-                interact: function(action, data) { return lingtongAPI('/api/sdk/lingtong/interact', {
+                getFlowList: function() { return lingtongAPI('/api/flowlist'); },
+                interact: function(action, data) { return lingtongAPI('/api/interact', {
                     method: 'POST',
                     body: JSON.stringify({ action, data })
                 }); }
@@ -1077,10 +1158,31 @@ def generate_simple_bundle(
 
         window.dispatchEvent(new CustomEvent('sdk:mounted', { detail: { token: SDK_TOKEN } }));
     }
+    
+    // 全局标记：是否已经尝试登录过（防止多个 SDK 实例重复登录）
+    var LINGTONG_LOGIN_ATTEMPTED = false;
 
     function autoInit() {
         var containers = document.querySelectorAll('[data-sdk-token="' + SDK_TOKEN + '"]');
         containers.forEach(function(c) { initSDK(c); });
+        
+        // 【关键】所有 SDK 初始化完成后，自动登录灵童平台（只执行一次）
+        if (!LINGTONG_LOGIN_ATTEMPTED) {
+            LINGTONG_LOGIN_ATTEMPTED = true;
+            var hostConfig = getHostConfig();
+            if (hostConfig.username || hostConfig.phone || hostConfig.mobile) {
+                console.log('[SDK] 检测到用户名配置，开始自动登录灵童平台...');
+                loginToLingtong().then(function(token) {
+                    if (token) {
+                        console.log('[SDK] 灵童平台登录成功，token 已获取');
+                    } else {
+                        console.log('[SDK] 灵童平台登录失败或跳过');
+                    }
+                });
+            } else {
+                console.log('[SDK] 未配置用户名，跳过灵童平台登录');
+            }
+        }
     }
 
     if (typeof document !== 'undefined') {

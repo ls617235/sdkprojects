@@ -843,26 +843,17 @@
         }
 
         // 刷新 token（如果需要）
+        // 注意：这个函数现在不再使用，因为 JS SDK 会自动处理登录
+        // 如果需要刷新 token，可以在这里调用 loginToLingtong()
         async function refreshTokenIfNeeded() {
-            if (shouldRefreshToken()) {
-                console.log('[Token] Token 即将过期或已过期，正在刷新...');
-                const token = await loginToLingtong();
-                if (token) {
-                    state.tokenExpireTime = Date.now() + TOKEN_EXPIRE_MS;
-                    console.log('[Token] Token 刷新成功，新过期时间:', new Date(state.tokenExpireTime));
-                } else {
-                    console.error('[Token] Token 刷新失败');
-                }
-                return token;
-            }
-            console.log('[Token] Token 仍然有效，无需刷新');
+            console.log('[Token] 使用 JS SDK 的登录机制，跳过本地刷新');
             return state.lingtongToken;
         }
 
         // ============ API 服务层（使用 SDK 平台代理） ============
-        // 使用 SDK_CONFIG 中的 apiBaseUrl，如果不存在则使用默认值
-        // 注意：后端代理路由为 /api/sdk/lingtong/*
-        const API_BASE = (typeof SDK_CONFIG !== 'undefined' && SDK_CONFIG.apiBaseUrl) ? SDK_CONFIG.apiBaseUrl : '/api';
+        // 使用相对路径 /api，所有请求都会发送到当前域名（SDK 服务平台）
+        // 注意：后端代理路由为 /api/lingtong/*
+        const API_BASE = '/api';
 
         // 获取 API 基础地址（兼容旧代码）
         function getApiBase() {
@@ -892,7 +883,19 @@
                 const token = data.auth_token;
                 if (token) {
                     state.lingtongToken = token;
-                    console.log('[SDK] 灵童平台登录成功');
+                    // 保存 token 过期时间（如果接口返回了 token_expiry）
+                    if (data.token_expiry) {
+                        state.tokenExpireTime = new Date(data.token_expiry).getTime();
+                        console.log('[SDK] 灵童平台登录成功，token 过期时间:', data.token_expiry);
+                    } else {
+                        // 如果没有返回过期时间，默认设置25分钟后过期
+                        state.tokenExpireTime = Date.now() + TOKEN_EXPIRE_MS;
+                        console.log('[SDK] 灵童平台登录成功，使用默认过期时间（25分钟）');
+                    }
+                    // 登录成功后获取用户信息
+                    await fetchUserInfoFromBackend();
+                    // 启动自动刷新定时器
+                    startTokenRefreshTimer();
                     return token;
                 }
                 return null;
@@ -902,102 +905,135 @@
             }
         }
 
-        // 初始化用户ID和用户名（从 SDK_CONFIG 获取或使用默认值）
+        // Token 自动刷新定时器
+        let tokenRefreshTimer = null;
+
+        // 启动 token 自动刷新定时器
+        function startTokenRefreshTimer() {
+            // 清除已有的定时器
+            if (tokenRefreshTimer) {
+                clearTimeout(tokenRefreshTimer);
+                tokenRefreshTimer = null;
+            }
+
+            if (!state.tokenExpireTime) {
+                console.log('[Token] 未设置过期时间，无法启动自动刷新');
+                return;
+            }
+
+            // 计算距离过期前5分钟的时间点
+            const refreshTime = state.tokenExpireTime - 5 * 60 * 1000;
+            const now = Date.now();
+            const delay = refreshTime - now;
+
+            if (delay <= 0) {
+                // 已经过期或即将过期，立即刷新
+                console.log('[Token] Token 已过期或即将过期，立即刷新');
+                autoRefreshToken();
+            } else {
+                // 设置定时器在过期前5分钟刷新
+                const delayMinutes = Math.round(delay / 60000);
+                console.log(`[Token] 将在 ${delayMinutes} 分钟后自动刷新 token`);
+                tokenRefreshTimer = setTimeout(async () => {
+                    await autoRefreshToken();
+                }, delay);
+            }
+        }
+
+        // 自动刷新 token
+        async function autoRefreshToken() {
+            console.log('[Token] Token 即将过期，自动刷新中...');
+            const newToken = await loginToLingtong();
+            if (newToken) {
+                console.log('[Token] Token 自动刷新成功');
+                // 同步更新到 JS SDK 全局变量
+                if (typeof window !== 'undefined') {
+                    window.LINGTONG_USER_TOKEN = newToken;
+                }
+                // 重新启动定时器（使用新的过期时间）
+                startTokenRefreshTimer();
+            } else {
+                console.error('[Token] Token 自动刷新失败，5分钟后重试');
+                // 刷新失败，5分钟后重试
+                tokenRefreshTimer = setTimeout(async () => {
+                    await autoRefreshToken();
+                }, 5 * 60 * 1000);
+            }
+        }
+
+        // 停止 token 自动刷新定时器
+        function stopTokenRefreshTimer() {
+            if (tokenRefreshTimer) {
+                clearInterval(tokenRefreshTimer);
+                tokenRefreshTimer = null;
+                console.log('[Token] 已停止自动刷新定时器');
+            }
+        }
+
+        // 初始化用户ID和用户名（从 JS SDK 全局变量获取）
+        // 注意：登录由 JS SDK 统一处理，用户代码只读取全局变量
         function initUserInfo() {
-            // 优先从 SDK_CONFIG 获取用户信息
-            if (typeof SDK_CONFIG !== 'undefined' && SDK_CONFIG.custom) {
-                if (SDK_CONFIG.custom.userId) {
-                    state.userId = SDK_CONFIG.custom.userId;
+            // 从 JS SDK 全局变量获取用户信息（JS SDK 登录后会设置这些变量）
+            if (typeof window !== 'undefined' && window.LINGTONG_USER_INFO) {
+                const sdkUserInfo = window.LINGTONG_USER_INFO;
+                if (sdkUserInfo.user_id || sdkUserInfo.userId) {
+                    state.userId = sdkUserInfo.user_id || sdkUserInfo.userId;
                 }
-                if (SDK_CONFIG.custom.userName) {
-                    state.userName = SDK_CONFIG.custom.userName;
+                if (sdkUserInfo.user_name || sdkUserInfo.userName) {
+                    state.userName = sdkUserInfo.user_name || sdkUserInfo.userName;
                 }
+                console.log('[SDK] 从 JS SDK 获取用户信息:', state.userId, state.userName);
+            } else {
+                console.log('[SDK] 未检测到 JS SDK 用户信息，等待 JS SDK 登录...');
             }
-            console.log('[SDK] 用户信息初始化:', state.userId, state.userName);
+            console.log('[SDK] 用户信息初始化完成:', state.userId, state.userName);
         }
 
-        // 从后端获取用户信息（通过 token）
-        async function fetchUserInfoFromBackend() {
-            try {
-                if (!state.lingtongToken) {
-                    console.error('[SDK] 无法获取用户信息：未登录');
-                    return;
-                }
-
-                console.log('[SDK] 正在从后端获取用户信息...');
-                const response = await fetch(API_BASE + '/sdk/lingtong/user-info', {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({})
-                });
-
-                if (!response.ok) {
-                    console.error('[SDK] 获取用户信息失败:', response.status);
-                    return;
-                }
-
-                const data = await response.json();
-                console.log('[SDK] 获取到用户信息:', data);
-
-                // 更新 state 中的用户信息
-                if (data.user_id) {
-                    state.userId = data.user_id;
-                }
-                if (data.user_name) {
-                    state.userName = data.user_name;
-                }
-
-                console.log('[SDK] 用户信息已更新:', state.userId, state.userName);
-            } catch (error) {
-                console.error('[SDK] 获取用户信息出错:', error);
+        // 从 JS SDK 全局变量同步 token
+        function syncTokenFromSDK() {
+            if (typeof window !== 'undefined' && window.LINGTONG_USER_TOKEN) {
+                state.lingtongToken = window.LINGTONG_USER_TOKEN;
+                console.log('[SDK] 从 JS SDK 同步 token');
             }
         }
 
-        // 从后端获取用户信息（通过灵童平台token）
-        async function fetchUserInfoFromBackend() {
-            try {
-                const response = await fetch(API_BASE + '/sdk/lingtong/user-info', {
-                    method: 'POST',
-                    headers: getAuthHeaders()
-                });
-
-                if (!response.ok) {
-                    throw new Error('获取用户信息失败: ' + response.status);
+        // 从 JS SDK 全局变量同步用户信息
+        function syncUserInfoFromSDK() {
+            if (typeof window !== 'undefined' && window.LINGTONG_USER_INFO) {
+                const sdkUserInfo = window.LINGTONG_USER_INFO;
+                if (sdkUserInfo.user_id || sdkUserInfo.userId) {
+                    state.userId = sdkUserInfo.user_id || sdkUserInfo.userId;
                 }
-
-                const result = await response.json();
-                console.log('[SDK] 获取到用户信息:', result);
-
-                // 处理嵌套数据结构 { success: true, data: { user_id: ..., user_name: ... } }
-                const userData = result.data || result;
-                
-                // 更新状态中的用户信息
-                if (userData.user_id) {
-                    state.userId = userData.user_id;
+                if (sdkUserInfo.user_name || sdkUserInfo.userName) {
+                    state.userName = sdkUserInfo.user_name || sdkUserInfo.userName;
                 }
-                if (userData.user_name) {
-                    state.userName = userData.user_name;
+                console.log('[SDK] 从 JS SDK 同步用户信息:', state.userId, state.userName);
+            }
+        }
+
+        // 初始化用户信息（从 JS SDK 全局变量获取）
+        initUserInfo();
+        syncTokenFromSDK();
+
+        // 监听 JS SDK 登录完成事件
+        window.addEventListener('lingtong-login-success', function(e) {
+            console.log('[SDK] 监听到 JS SDK 登录成功事件:', e.detail);
+            if (e.detail) {
+                // 更新用户信息
+                if (e.detail.user_id) {
+                    state.userId = e.detail.user_id;
+                }
+                if (e.detail.user_name) {
+                    state.userName = e.detail.user_name;
+                }
+                // 更新 token
+                if (e.detail.token) {
+                    state.lingtongToken = e.detail.token;
+                    window.LINGTONG_USER_TOKEN = e.detail.token;
                 }
                 console.log('[SDK] 用户信息已更新:', state.userId, state.userName);
-                return userData;
-            } catch (error) {
-                console.error('[SDK] 获取用户信息失败:', error);
-                return null;
             }
-        }
-
-        // 初始化时登录并设置用户信息
-        async function init() {
-            // 先初始化用户信息（从SDK_CONFIG获取默认值）
-            initUserInfo();
-            // 然后登录获取token
-            const token = await loginToLingtong();
-            // 登录成功后，从后端获取真实的用户信息
-            if (token) {
-                await fetchUserInfoFromBackend();
-            }
-        }
-        init();
+        });
 
         // 获取请求头，包含认证token
         function getAuthHeaders() {
@@ -1033,7 +1069,9 @@
 
         // 获取会话详情
         async function getConversationDetail(conversationId) {
-            const response = await fetch(API_BASE + '/sdk/lingtong/conversations/' + conversationId + '?active_at=' + new Date().toISOString());
+            const response = await fetch(API_BASE + '/sdk/lingtong/conversations/' + conversationId + '?user_id=' + state.userId + '&user_name=' + encodeURIComponent(state.userName) + '&app_info=' + APP_INFO + '&active_at=' + new Date().toISOString(), {
+                headers: getAuthHeaders()
+            });
             return response.json();
         }
 
@@ -1064,7 +1102,9 @@
                     app_info: APP_INFO,
                     input_value: inputValue,
                     tweaks: {},
-                    session_id: finalSessionId
+                    session_id: finalSessionId,
+                    user_id: state.userId,
+                    user_name: state.userName
                 })
             });
             return response.json();
@@ -1775,8 +1815,13 @@
         // 浮动图标点击事件
         var floatingIcon = document.querySelector('.floating-icon');
         if (floatingIcon) {
-            floatingIcon.addEventListener('click', function(e) {
+            floatingIcon.addEventListener('click', async function(e) {
                 e.preventDefault();
+
+                // 从 JS SDK 同步用户信息和 token
+                initUserInfo();
+                syncTokenFromSDK();
+
                 var modal = safeGetElement('modalOverlay');
                 if (modal) {
                     modal.classList.add('show');
@@ -1816,14 +1861,18 @@
             });
         }
 
-        // 历史对话按钮
-        var historyActionBtn = document.querySelector('.action-btn');
+        // 历史对话按钮（已禁用）
+        // 注：历史对话按钮已从 HTML 中移除，此绑定已禁用
+        // 如需重新启用，请使用 id 选择器：document.getElementById('historyBtn')
+        /*
+        var historyActionBtn = document.getElementById('historyBtn');
         if (historyActionBtn) {
             historyActionBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 toggleHistoryDrawer();
             });
         }
+        */
 
         // 示例标签点击事件
         var exampleTags = document.querySelectorAll('.example-tag');
